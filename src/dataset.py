@@ -12,6 +12,12 @@ from torchvision import transforms
 from utils import IMAGENET_MEAN, IMAGENET_STD, read_table
 
 
+def safe_metadata_value(value: Any) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value)
+
+
 def build_transforms(image_size: int, train: bool) -> transforms.Compose:
     if train:
         return transforms.Compose(
@@ -71,6 +77,6 @@ class DermatologyDataset(Dataset):
 
         label_name = str(row[self.label_column])
         label = self.class_to_idx[label_name]
-        metadata = row.to_dict()
+        metadata = {key: safe_metadata_value(value) for key, value in row.to_dict().items()}
         metadata["image_path"] = str(image_path)
         return image, label, metadata
