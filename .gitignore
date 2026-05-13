@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+venv/
+data/raw/
+outputs/checkpoints/
+outputs/plots/
+outputs/predictions/
+outputs/metrics/*.json
+outputs/metrics/*.csv
+outputs/metrics/*.txt
