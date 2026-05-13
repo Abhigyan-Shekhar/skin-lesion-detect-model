@@ -21,6 +21,7 @@ from utils import (
     choose_label_column,
     detect_columns,
     ensure_dir,
+    read_table,
     read_yaml,
     resolve_device,
     set_seed,
@@ -36,8 +37,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_split_metadata(train_csv: Path, val_csv: Path, label_override: str | None) -> tuple[str, str, list[str]]:
-    train_df = pd.read_csv(train_csv)
-    val_df = pd.read_csv(val_csv)
+    train_df = read_table(train_csv)
+    val_df = read_table(val_csv)
     shared_columns = list(train_df.columns)
     detected = detect_columns(shared_columns)
     image_column = detected.get("image")

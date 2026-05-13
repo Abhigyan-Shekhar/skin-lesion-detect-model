@@ -9,7 +9,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from utils import IMAGENET_MEAN, IMAGENET_STD
+from utils import IMAGENET_MEAN, IMAGENET_STD, read_table
 
 
 def build_transforms(image_size: int, train: bool) -> transforms.Compose:
@@ -43,7 +43,7 @@ class DermatologyDataset(Dataset):
         class_to_idx: dict[str, int],
         transform: transforms.Compose | None = None,
     ) -> None:
-        self.df = pd.read_csv(csv_path)
+        self.df = read_table(csv_path)
         self.image_dir = Path(image_dir)
         self.image_column = image_column
         self.label_column = label_column

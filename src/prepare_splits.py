@@ -6,11 +6,11 @@ from pathlib import Path
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
-from utils import choose_label_column, detect_columns, ensure_dir, set_seed, write_json
+from utils import choose_label_column, detect_columns, ensure_dir, read_table, set_seed, write_json
 
 
 def load_split_file(split_path: Path, metadata: pd.DataFrame, image_column: str) -> pd.DataFrame:
-    split_df = pd.read_csv(split_path)
+    split_df = read_table(split_path)
     candidate_columns = [column for column in split_df.columns if column in metadata.columns]
     if image_column not in split_df.columns and image_column not in candidate_columns:
         raise ValueError(
@@ -110,7 +110,7 @@ def main() -> None:
     if not metadata_path.exists():
         raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
 
-    df = pd.read_csv(metadata_path)
+    df = read_table(metadata_path)
     detected = detect_columns(df.columns.tolist())
     image_column = detected.get("image")
     if not image_column:

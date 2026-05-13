@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from utils import detect_columns, ensure_dir, write_json
+from utils import detect_columns, ensure_dir, read_table, write_json
 
 
 def build_summary(metadata_path: Path, image_dir: Path) -> dict:
-    df = pd.read_csv(metadata_path)
+    df = read_table(metadata_path)
     detected = detect_columns(df.columns.tolist())
     summary: dict = {
         "metadata_path": str(metadata_path),

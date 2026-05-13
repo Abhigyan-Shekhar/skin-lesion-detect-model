@@ -12,6 +12,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 
 DATAVERSE_SERVER = "https://dataverse.harvard.edu"
 DEFAULT_PERSISTENT_ID = "doi:10.7910/DVN/W7OUZM"
@@ -106,15 +108,15 @@ def normalize_downloaded_layout(raw_dir: Path) -> None:
         if lower_name in {"skin_metadata.tab", "skin_metadata.tsv", "skin_metadata.csv"}:
             target = metadata_dir / "Skin_Metadata.csv"
             if file_path != target:
-                shutil.copy2(file_path, target)
+                pd.read_csv(file_path, sep=None, engine="python").to_csv(target, index=False)
         elif lower_name in {"train_split.tab", "train_split.tsv", "train_split.csv"}:
             target = raw_dir / "train_split.csv"
             if file_path != target:
-                shutil.copy2(file_path, target)
+                pd.read_csv(file_path, sep=None, engine="python").to_csv(target, index=False)
         elif lower_name in {"test_split.tab", "test_split.tsv", "test_split.csv"}:
             target = raw_dir / "test_split.csv"
             if file_path != target:
-                shutil.copy2(file_path, target)
+                pd.read_csv(file_path, sep=None, engine="python").to_csv(target, index=False)
         elif file_path.suffix.lower() in {".jpg", ".jpeg", ".png"} and "DATASET" not in file_path.parts:
             target = dataset_dir / file_path.name
             if file_path != target and not target.exists():

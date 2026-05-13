@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import yaml
 
 try:
@@ -111,6 +112,20 @@ def write_json(path: str | Path, payload: dict[str, Any] | list[Any]) -> None:
     ensure_dir(path.parent)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=True)
+
+
+def read_table(path: str | Path) -> pd.DataFrame:
+    """Read CSV/TSV metadata while tolerating mislabeled .csv files from Dataverse."""
+    path = Path(path)
+    try:
+        return pd.read_csv(path, sep=None, engine="python")
+    except pd.errors.ParserError:
+        suffix = path.suffix.lower()
+        if suffix in {".tab", ".tsv"}:
+            return pd.read_csv(path, sep="\t")
+        if suffix == ".csv":
+            return pd.read_csv(path, sep="\t")
+        raise
 
 
 def normalize_column_name(name: str) -> str:
