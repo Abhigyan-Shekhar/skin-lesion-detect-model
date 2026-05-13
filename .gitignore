@@ -4,9 +4,16 @@ __pycache__/
 .venv/
 venv/
 data/raw/
+data/ham10000/raw/
 outputs/checkpoints/
 outputs/plots/
 outputs/predictions/
 outputs/metrics/*.json
 outputs/metrics/*.csv
 outputs/metrics/*.txt
+outputs_ham10000/checkpoints/
+outputs_ham10000/plots/
+outputs_ham10000/predictions/
+outputs_ham10000/metrics/*.json
+outputs_ham10000/metrics/*.csv
+outputs_ham10000/metrics/*.txt

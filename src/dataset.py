@@ -67,7 +67,8 @@ class DermatologyDataset(Dataset):
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int, dict[str, Any]]:
         row = self.df.iloc[index]
-        image_path = self.image_dir / str(row[self.image_column])
+        raw_image_path = Path(str(row[self.image_column]))
+        image_path = raw_image_path if raw_image_path.is_absolute() else self.image_dir / raw_image_path
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
 

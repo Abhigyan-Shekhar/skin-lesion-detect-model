@@ -114,6 +114,55 @@ In Colab:
 9. Evaluate `outputs/checkpoints/best.pt`.
 10. Copy outputs back to Drive.
 
+## Optional HAM10000 / ISIC-Style Dermoscopy Model
+
+This is a separate workflow for dermoscopy-style lesion labels such as `mel`, `nv`, `bcc`, `bkl`, `akiec`, `df`, and `vasc`. It does not replace the DermaCon-IN OPD triage model.
+
+Use:
+
+- `notebooks/train_ham10000_colab.ipynb`
+- `configs/efficientnet_b0_ham10000.yaml`
+- `src/prepare_ham10000.py`
+- `docs/ham10000_training.md`
+
+Expected Drive layout for Colab:
+
+```text
+MyDrive/derm-opd-triage-ham10000/
+└── data/
+    └── raw/
+        ├── HAM10000_metadata.csv
+        ├── HAM10000_images_part_1/
+        │   └── ISIC_*.jpg
+        └── HAM10000_images_part_2/
+            └── ISIC_*.jpg
+```
+
+Prepare splits:
+
+```bash
+python src/prepare_ham10000.py \
+  --metadata data/ham10000/raw/HAM10000_metadata.csv \
+  --image_dirs data/ham10000/raw/HAM10000_images_part_1 data/ham10000/raw/HAM10000_images_part_2 \
+  --output_dir data/ham10000/splits
+```
+
+Train:
+
+```bash
+python src/train.py \
+  --config configs/efficientnet_b0_ham10000.yaml
+```
+
+Evaluate:
+
+```bash
+python src/evaluate.py \
+  --checkpoint outputs_ham10000/checkpoints/best.pt \
+  --split data/ham10000/splits/test.csv \
+  --output_dir outputs_ham10000
+```
+
 ## Expected data layout
 
 Place the dataset like this:
