@@ -9,7 +9,34 @@ Use Google Colab with:
 - Runtime type: `Python 3`
 - Hardware accelerator: `T4 GPU` or better
 
-## Dataset Layout In Google Drive
+## Dataset Source
+
+DermaCon-IN Dataset Release v1.0:
+
+- URL: `https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/W7OUZM`
+- DOI: `10.7910/DVN/W7OUZM`
+- License: `CC BY-NC-SA 4.0`
+
+The Dataverse web page may require JavaScript/browser verification. In Colab, use the Dataverse API downloader:
+
+```bash
+python src/download_dataverse.py \
+  --persistent_id doi:10.7910/DVN/W7OUZM \
+  --output_dir data/raw
+```
+
+To inspect the file list without downloading files:
+
+```bash
+python src/download_dataverse.py \
+  --persistent_id doi:10.7910/DVN/W7OUZM \
+  --output_dir data/raw \
+  --metadata_only
+```
+
+If large image downloads fail or Dataverse throttles access, use the manual Drive layout below.
+
+## Manual Dataset Layout In Google Drive
 
 Create this folder in Drive:
 
@@ -33,6 +60,14 @@ After cloning the repo and mounting Drive:
 
 ```bash
 pip install -r requirements.txt
+```
+
+Download from Dataverse into Colab runtime or Drive:
+
+```bash
+python src/download_dataverse.py \
+  --persistent_id doi:10.7910/DVN/W7OUZM \
+  --output_dir data/raw
 ```
 
 Inspect metadata:

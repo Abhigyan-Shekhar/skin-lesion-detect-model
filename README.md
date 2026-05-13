@@ -73,6 +73,20 @@ Use the notebook:
 notebooks/train_effnet_b0_colab.ipynb
 ```
 
+Dataset source:
+
+```text
+https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/W7OUZM
+```
+
+The notebook uses DOI `10.7910/DVN/W7OUZM` and includes a Dataverse API download step:
+
+```bash
+python src/download_dataverse.py \
+  --persistent_id doi:10.7910/DVN/W7OUZM \
+  --output_dir data/raw
+```
+
 Recommended Drive layout:
 
 ```text
