@@ -15,7 +15,9 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from question_engine import get_adaptive_questions, run_engine
+from fusion import build_combined_payload
+from question_engine import run_engine
+from router import run_dual_model_inference
 from summary_generator import generate_summary, summary_to_text
 from utils import DISCLAIMER_TEXT
 
@@ -31,6 +33,23 @@ DEFAULT_PREDICTION_LABELS = [
     "tinea corporis",
     "eczema",
     "impetigo",
+]
+
+DEFAULT_OPD_LABELS = [
+    "Pigmentary Disorders",
+    "Inflammatory Disorders",
+    "Infectious Disorders",
+    "Other skin disorders",
+]
+
+DEFAULT_LESION_LABELS = [
+    "mel",
+    "nv",
+    "bcc",
+    "bkl",
+    "akiec",
+    "df",
+    "vasc",
 ]
 
 
@@ -56,57 +75,6 @@ def confidence_level(max_prob: float) -> str:
     return "low"
 
 
-def run_checkpoint_inference(
-    checkpoint_path: Path,
-    image_path: Path,
-    top_k: int,
-) -> dict[str, Any]:
-    try:
-        import torch
-
-        from dataset import build_transforms
-        from models import build_model
-        from utils import resolve_device
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "Model inference dependencies are not installed. Run: pip install -r requirements.txt"
-        ) from exc
-
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    config = checkpoint["config"]
-    class_to_idx = checkpoint["class_to_idx"]
-    idx_to_class = {idx: label for label, idx in class_to_idx.items()}
-    device = resolve_device(config.get("device", "auto"))
-
-    model = build_model(
-        model_name=config["model_name"],
-        num_classes=len(class_to_idx),
-        freeze_backbone=False,
-    )
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model = model.to(device)
-    model.eval()
-
-    transform = build_transforms(image_size=int(config["image_size"]), train=False)
-    image = Image.open(image_path).convert("RGB")
-    tensor = transform(image).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        logits = model(tensor)
-        probs = torch.softmax(logits, dim=1)[0]
-        values, indices = torch.topk(probs, k=min(top_k, probs.shape[0]))
-
-    predictions = [
-        {"label": idx_to_class[int(index.item())], "probability": round(float(value.item()), 6)}
-        for value, index in zip(values, indices)
-    ]
-    return {
-        "top_predictions": predictions,
-        "confidence_level": confidence_level(float(values[0].item())),
-        "disclaimer": DISCLAIMER_TEXT,
-    }
-
-
 def normalize_manual_predictions(rows: list[dict[str, Any]]) -> dict[str, Any]:
     predictions = [
         {
@@ -121,8 +89,23 @@ def normalize_manual_predictions(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "top_predictions": predictions,
         "confidence_level": confidence_level(max_prob),
+        "max_probability": round(max_prob, 6),
         "disclaimer": DISCLAIMER_TEXT,
     }
+
+
+def normalize_manual_combined_predictions(
+    opd_rows: list[dict[str, Any]],
+    lesion_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    combined_input = {
+        "image_path": "manual-demo",
+        "branches": {
+            "opd": normalize_manual_predictions(opd_rows),
+            "ham10000": normalize_manual_predictions(lesion_rows),
+        },
+    }
+    return build_combined_payload(combined_input)
 
 
 def render_disclaimer() -> None:
@@ -190,61 +173,100 @@ def render_prediction_panel() -> None:
         image = Image.open(uploaded).convert("RGB")
         st.image(image, caption="Uploaded image", use_container_width=True)
 
-    col_a, col_b = st.columns([2, 1])
+    col_a, col_b, col_c = st.columns([2, 2, 1])
     with col_a:
-        checkpoint_text = st.text_input(
-            "Checkpoint path",
+        opd_checkpoint_text = st.text_input(
+            "DermaCon-IN checkpoint",
             value=str(PROJECT_ROOT / "outputs" / "checkpoints" / "best.pt"),
         )
     with col_b:
+        lesion_checkpoint_text = st.text_input(
+            "HAM10000 checkpoint",
+            value=str(PROJECT_ROOT / "outputs_ham10000" / "checkpoints" / "best.pt"),
+        )
+    with col_c:
         top_k = st.number_input("Top-k", min_value=1, max_value=10, value=5)
 
-    if st.button("Run Checkpoint Inference", disabled=uploaded is None):
-        checkpoint_path = Path(checkpoint_text)
-        if not checkpoint_path.exists():
-            st.warning("Checkpoint not found. Use manual predictions below until a model is trained.")
+    if st.button("Run Dual-Model Inference", disabled=uploaded is None):
+        opd_checkpoint = Path(opd_checkpoint_text)
+        lesion_checkpoint = Path(lesion_checkpoint_text)
+        if not opd_checkpoint.exists() or not lesion_checkpoint.exists():
+            st.warning("One or both checkpoints were not found. Use the manual combined prediction demo below until both models are trained.")
         else:
             suffix = Path(uploaded.name).suffix or ".jpg"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
                 handle.write(uploaded.getbuffer())
                 temp_path = Path(handle.name)
             try:
-                st.session_state.predictions_payload = run_checkpoint_inference(
-                    checkpoint_path=checkpoint_path,
+                dual_result = run_dual_model_inference(
                     image_path=temp_path,
-                    top_k=int(top_k),
+                    opd_checkpoint=opd_checkpoint,
+                    lesion_checkpoint=lesion_checkpoint,
+                    top_k_opd=int(top_k),
+                    top_k_lesion=int(top_k),
                 )
-                st.success("Model prediction generated.")
+                st.session_state.predictions_payload = build_combined_payload(dual_result)
+                st.session_state.answers = {}
+                st.session_state.engine_output = None
+                st.session_state.summary = None
+                st.session_state.summary_text = ""
+                st.success("Dual-model prediction generated.")
             except RuntimeError as exc:
                 st.error(str(exc))
             finally:
                 temp_path.unlink(missing_ok=True)
 
     st.divider()
-    st.caption("Manual top-k entry is available for demo flow testing before a trained checkpoint exists.")
-    manual_rows = []
+    st.caption("Manual combined entry is available for demo flow testing before both checkpoints exist.")
+    st.markdown("**Manual DermaCon-IN branch**")
+    opd_rows = []
     for index in range(3):
         col_label, col_prob = st.columns([3, 1])
         with col_label:
             label = st.text_input(
-                f"Prediction {index + 1}",
-                value=DEFAULT_PREDICTION_LABELS[min(index, len(DEFAULT_PREDICTION_LABELS) - 1)],
-                key=f"manual_label_{index}",
+                f"OPD prediction {index + 1}",
+                value=DEFAULT_OPD_LABELS[min(index, len(DEFAULT_OPD_LABELS) - 1)],
+                key=f"manual_opd_label_{index}",
             )
         with col_prob:
             probability = st.number_input(
-                f"Probability {index + 1}",
+                f"OPD probability {index + 1}",
                 min_value=0.0,
                 max_value=1.0,
-                value=[0.42, 0.21, 0.13][index],
+                value=[0.62, 0.20, 0.12][index],
                 step=0.01,
-                key=f"manual_prob_{index}",
+                key=f"manual_opd_prob_{index}",
             )
-        manual_rows.append({"label": label, "probability": probability})
+        opd_rows.append({"label": label, "probability": probability})
 
-    if st.button("Use Manual Predictions"):
-        st.session_state.predictions_payload = normalize_manual_predictions(manual_rows)
-        st.success("Manual predictions saved.")
+    st.markdown("**Manual HAM10000 branch**")
+    lesion_rows = []
+    for index in range(3):
+        col_label, col_prob = st.columns([3, 1])
+        with col_label:
+            label = st.text_input(
+                f"Lesion prediction {index + 1}",
+                value=DEFAULT_LESION_LABELS[min(index, len(DEFAULT_LESION_LABELS) - 1)],
+                key=f"manual_lesion_label_{index}",
+            )
+        with col_prob:
+            probability = st.number_input(
+                f"Lesion probability {index + 1}",
+                min_value=0.0,
+                max_value=1.0,
+                value=[0.41, 0.24, 0.19][index],
+                step=0.01,
+                key=f"manual_lesion_prob_{index}",
+            )
+        lesion_rows.append({"label": label, "probability": probability})
+
+    if st.button("Use Manual Combined Predictions"):
+        st.session_state.predictions_payload = normalize_manual_combined_predictions(opd_rows, lesion_rows)
+        st.session_state.answers = {}
+        st.session_state.engine_output = None
+        st.session_state.summary = None
+        st.session_state.summary_text = ""
+        st.success("Manual combined predictions saved.")
 
     if st.session_state.predictions_payload:
         st.json(st.session_state.predictions_payload)
@@ -257,7 +279,8 @@ def render_questions() -> None:
         st.info("Add model or manual predictions first.")
         return
 
-    questions = get_adaptive_questions(predictions_payload["top_predictions"])
+    preview_engine = run_engine(predictions_payload, answers=st.session_state.answers)
+    questions = preview_engine["questions"]
     answers: dict[str, Any] = {}
     with st.form("adaptive_questions_form"):
         for question in questions:
