@@ -120,6 +120,7 @@ def generate_summary(
             "image_quality_warning": image_quality_warning or "Not assessed",
         },
         "adaptive_reasoning": {
+            "questioning_profile": scoring.get("profile_display_name"),
             "key_positive_answers": scoring.get("key_positive_answers", []),
             "key_negative_answers": scoring.get("key_negative_answers", []),
             "red_flags": scoring.get("red_flags", []),
@@ -171,6 +172,7 @@ def summary_to_text(summary: dict[str, Any]) -> str:
 
     reasoning = summary["adaptive_reasoning"]
     lines.extend(["", "Adaptive reasoning:"])
+    lines.append(f"- Questioning profile: {normalize_answer(reasoning.get('questioning_profile'))}")
     lines.append(f"- Key positive answers: {', '.join(reasoning['key_positive_answers']) or 'None recorded'}")
     lines.append(f"- Key negative answers: {', '.join(reasoning['key_negative_answers']) or 'None recorded'}")
     red_flags = [flag["text"] for flag in reasoning["red_flags"]]

@@ -21,12 +21,16 @@ from utils import DISCLAIMER_TEXT
 
 
 DEFAULT_PREDICTION_LABELS = [
+    "mel",
+    "nv",
+    "bcc",
+    "bkl",
+    "akiec",
+    "df",
+    "vasc",
     "tinea corporis",
     "eczema",
     "impetigo",
-    "cellulitis",
-    "herpes zoster",
-    "scabies",
 ]
 
 
@@ -222,10 +226,9 @@ def render_prediction_panel() -> None:
     for index in range(3):
         col_label, col_prob = st.columns([3, 1])
         with col_label:
-            label = st.selectbox(
+            label = st.text_input(
                 f"Prediction {index + 1}",
-                DEFAULT_PREDICTION_LABELS,
-                index=min(index, len(DEFAULT_PREDICTION_LABELS) - 1),
+                value=DEFAULT_PREDICTION_LABELS[min(index, len(DEFAULT_PREDICTION_LABELS) - 1)],
                 key=f"manual_label_{index}",
             )
         with col_prob:
