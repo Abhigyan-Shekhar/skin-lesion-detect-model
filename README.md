@@ -219,6 +219,30 @@ python src/evaluate.py \
   --output_dir outputs_ham10000
 ```
 
+## Combined Dual-Model Reasoning
+
+To run both the DermaCon-IN OPD model and the HAM10000 lesion model on the same uploaded image, use:
+
+```bash
+python src/unified_inference.py \
+  --image path/to/lesion.jpg \
+  --opd_checkpoint outputs/checkpoints/best.pt \
+  --lesion_checkpoint outputs_ham10000/checkpoints/best.pt
+```
+
+This keeps both branches separate:
+
+- DermaCon-IN: broad OPD / clinical context
+- HAM10000: lesion-specific differential
+
+The resulting JSON includes:
+
+- `dual_model_result`
+- `combined_payload`
+- `engine_output`
+
+Use `engine_output` to drive adaptive questions and the doctor-facing summary. Do not average the two model probability spaces.
+
 ## Expected data layout
 
 Place the dataset like this:

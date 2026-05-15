@@ -289,6 +289,41 @@ def parse_predictions(payload: dict[str, Any] | list[dict[str, Any]]) -> list[Pr
     ]
 
 
+def coerce_predictions(
+    payload: dict[str, Any] | list[dict[str, Any]] | list[Prediction],
+) -> list[Prediction]:
+    if isinstance(payload, list) and all(isinstance(item, Prediction) for item in payload):
+        return payload
+    return parse_predictions(payload)  # type: ignore[arg-type]
+
+
+def is_combined_payload(payload: Any) -> bool:
+    return isinstance(payload, dict) and isinstance(payload.get("branches"), dict)
+
+
+def merge_questions(*question_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for question_list in question_lists:
+        for question in question_list:
+            question_id = str(question.get("id"))
+            if question_id in seen_ids:
+                continue
+            merged.append(question)
+            seen_ids.add(question_id)
+    return merged
+
+
+def unique_strings(values: list[str]) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value not in seen:
+            ordered.append(value)
+            seen.add(value)
+    return ordered
+
+
 def detect_profile(predictions: list[Prediction]) -> str:
     profile_hits = {name: 0 for name in QUESTION_PROFILES}
     for prediction in predictions:
@@ -327,10 +362,7 @@ def get_adaptive_questions(
     include_general: bool = True,
     profile_name: str | None = None,
 ) -> list[dict[str, Any]]:
-    parsed = [
-        item if isinstance(item, Prediction) else Prediction(label=str(item["label"]), probability=float(item.get("probability", 0.0)))
-        for item in predictions
-    ]
+    parsed = coerce_predictions(predictions)
     resolved_profile = profile_name or detect_profile(parsed)
     profile = QUESTION_PROFILES[resolved_profile]
     scores = initial_candidate_scores(parsed, resolved_profile)
@@ -458,15 +490,22 @@ def determine_urgency(
     return determine_opd_urgency(red_flags, answers, differential)
 
 
+def urgency_rank(level: str) -> int:
+    order = {
+        "non-urgent / monitor with doctor advice": 1,
+        "routine dermatologist review": 2,
+        "urgent dermatologist review": 3,
+        "emergency": 4,
+    }
+    return order.get(level, 0)
+
+
 def score_answers(
     predictions: list[Prediction] | list[dict[str, Any]],
     answers: dict[str, Any],
     profile_name: str | None = None,
 ) -> dict[str, Any]:
-    parsed = [
-        item if isinstance(item, Prediction) else Prediction(label=str(item["label"]), probability=float(item.get("probability", 0.0)))
-        for item in predictions
-    ]
+    parsed = coerce_predictions(predictions)
     resolved_profile = profile_name or detect_profile(parsed)
     profile = QUESTION_PROFILES[resolved_profile]
     scores = initial_candidate_scores(parsed, resolved_profile)
@@ -522,11 +561,107 @@ def score_answers(
     }
 
 
+def score_combined_answers(
+    combined_payload: dict[str, Any],
+    answers: dict[str, Any],
+) -> dict[str, Any]:
+    branches = combined_payload.get("branches", {})
+    branch_outputs: dict[str, dict[str, Any]] = {}
+    branch_questions: dict[str, list[dict[str, Any]]] = {}
+
+    for branch_name, payload in branches.items():
+        profile_name = "ham10000" if branch_name == "ham10000" else "opd"
+        branch_outputs[branch_name] = score_answers(payload, answers, profile_name=profile_name)
+        branch_questions[branch_name] = get_adaptive_questions(
+            parse_predictions(payload),
+            include_general=False,
+            max_category_questions=8,
+            profile_name=profile_name,
+        )
+
+    combined_differential: list[dict[str, Any]] = []
+    for branch_name, branch_output in branch_outputs.items():
+        branch_title = "Lesion branch" if branch_name == "ham10000" else "Broad OPD branch"
+        for row in branch_output["updated_differential"][:4]:
+            combined_differential.append(
+                {
+                    "branch": branch_name,
+                    "display_name": f"{branch_title}: {row['display_name']}",
+                    "score": row["score"],
+                    "possible_labels": row.get("possible_labels", []),
+                }
+            )
+
+    combined_differential.sort(key=lambda item: float(item["score"]), reverse=True)
+    merged_red_flags: list[dict[str, Any]] = []
+    seen_red_flags: set[tuple[str, str]] = set()
+    for branch_output in branch_outputs.values():
+        for flag in branch_output["red_flags"]:
+            marker = (str(flag.get("id")), str(flag.get("text")))
+            if marker in seen_red_flags:
+                continue
+            merged_red_flags.append(flag)
+            seen_red_flags.add(marker)
+
+    strongest_branch = max(
+        branch_outputs.values(),
+        key=lambda item: urgency_rank(item["urgency_level"]),
+        default={
+            "urgency_level": "routine dermatologist review",
+            "doctor_review_priority": "Clinician review required.",
+        },
+    )
+    return {
+        "profile": "combined",
+        "profile_display_name": "Combined clinical + lesion reasoning",
+        "candidate_type": "combined",
+        "updated_differential": combined_differential,
+        "branch_differentials": {
+            branch_name: branch_output["updated_differential"]
+            for branch_name, branch_output in branch_outputs.items()
+        },
+        "urgency_level": strongest_branch["urgency_level"],
+        "doctor_review_priority": strongest_branch["doctor_review_priority"],
+        "red_flags": merged_red_flags,
+        "key_positive_answers": unique_strings(
+            [item for branch_output in branch_outputs.values() for item in branch_output["key_positive_answers"]]
+        ),
+        "key_negative_answers": unique_strings(
+            [item for branch_output in branch_outputs.values() for item in branch_output["key_negative_answers"]]
+        ),
+        "branch_outputs": branch_outputs,
+        "branch_questions": branch_questions,
+        "disclaimer": DISCLAIMER_TEXT,
+    }
+
+
 def run_engine(
     predictions_payload: dict[str, Any] | list[dict[str, Any]],
     answers: dict[str, Any] | None = None,
     max_category_questions: int = 12,
 ) -> dict[str, Any]:
+    if is_combined_payload(predictions_payload):
+        branches = predictions_payload["branches"]
+        opd_questions = get_adaptive_questions(
+            parse_predictions(branches["opd"]),
+            profile_name="opd",
+            max_category_questions=max(4, max_category_questions // 2),
+        )
+        lesion_questions = get_adaptive_questions(
+            parse_predictions(branches["ham10000"]),
+            profile_name="ham10000",
+            max_category_questions=max(4, max_category_questions // 2),
+        )
+        scoring = score_combined_answers(predictions_payload, answers or {})
+        return {
+            "profile": "combined",
+            "profile_display_name": "Combined clinical + lesion reasoning",
+            "questions": merge_questions(opd_questions, lesion_questions),
+            "branch_questions": scoring.get("branch_questions", {}),
+            "scoring": scoring,
+            "disclaimer": DISCLAIMER_TEXT,
+        }
+
     predictions = parse_predictions(predictions_payload)
     profile_name = detect_profile(predictions)
     questions = get_adaptive_questions(

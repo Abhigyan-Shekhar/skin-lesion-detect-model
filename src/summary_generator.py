@@ -45,6 +45,18 @@ def build_answer_sections(answers: dict[str, Any], questions: list[dict[str, Any
 
 
 def format_predictions(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if isinstance(predictions_payload, dict) and isinstance(predictions_payload.get("branches"), dict):
+        combined_rows: list[dict[str, Any]] = []
+        for branch_name, branch_payload in predictions_payload["branches"].items():
+            for row in branch_payload.get("top_predictions", []):
+                combined_rows.append(
+                    {
+                        "label": f"{branch_name}: {row.get('label', '')}",
+                        "probability": round(float(row.get("probability", row.get("prob", 0.0))), 6),
+                    }
+                )
+        return combined_rows
+
     rows = (
         predictions_payload.get("top_predictions", predictions_payload)
         if isinstance(predictions_payload, dict)
@@ -81,6 +93,24 @@ def infer_model_uncertainty(predictions: list[dict[str, Any]], confidence_level:
     return "high uncertainty"
 
 
+def infer_combined_confidence_level(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> str | None:
+    if isinstance(predictions_payload, dict) and isinstance(predictions_payload.get("branches"), dict):
+        levels = [
+            str(branch_payload.get("confidence_level", "")).lower()
+            for branch_payload in predictions_payload["branches"].values()
+        ]
+        if "high" in levels:
+            return "high"
+        if "moderate" in levels:
+            return "moderate"
+        if "low" in levels:
+            return "low"
+        return None
+    if isinstance(predictions_payload, dict):
+        return predictions_payload.get("confidence_level")
+    return None
+
+
 def generate_summary(
     patient_intake: dict[str, Any],
     predictions_payload: dict[str, Any] | list[dict[str, Any]],
@@ -92,11 +122,7 @@ def generate_summary(
     questions = engine_output.get("questions", [])
     scoring = engine_output.get("scoring", engine_output)
     answer_sections = build_answer_sections(answers, questions)
-    confidence_level = (
-        predictions_payload.get("confidence_level")
-        if isinstance(predictions_payload, dict)
-        else None
-    )
+    confidence_level = infer_combined_confidence_level(predictions_payload)
 
     return {
         "patient_entered": {
@@ -121,6 +147,7 @@ def generate_summary(
         },
         "adaptive_reasoning": {
             "questioning_profile": scoring.get("profile_display_name"),
+            "branch_differentials": scoring.get("branch_differentials", {}),
             "key_positive_answers": scoring.get("key_positive_answers", []),
             "key_negative_answers": scoring.get("key_negative_answers", []),
             "red_flags": scoring.get("red_flags", []),
@@ -177,6 +204,14 @@ def summary_to_text(summary: dict[str, Any]) -> str:
     lines.append(f"- Key negative answers: {', '.join(reasoning['key_negative_answers']) or 'None recorded'}")
     red_flags = [flag["text"] for flag in reasoning["red_flags"]]
     lines.append(f"- Red flags: {', '.join(red_flags) or 'None recorded'}")
+    branch_differentials = reasoning.get("branch_differentials", {})
+    if branch_differentials:
+        for branch_name, branch_rows in branch_differentials.items():
+            preview = ", ".join(
+                f"{item['display_name']} ({item['score']})"
+                for item in branch_rows[:3]
+            )
+            lines.append(f"- {branch_name} branch differential: {preview or 'None recorded'}")
 
     output = summary["output"]
     lines.extend(["", "Output:"])
