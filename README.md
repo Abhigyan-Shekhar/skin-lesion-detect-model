@@ -73,6 +73,10 @@ Use the notebook:
 notebooks/train_effnet_b0_colab.ipynb
 ```
 
+Direct Colab link:
+
+- [Train EfficientNet-B0 on Colab](https://colab.research.google.com/drive/1XJ1IGi2Gwntkn50t2eL8IyaUbGvrMf28?authuser=2#scrollTo=yixEUF6O8qPt)
+
 Dataset source:
 
 ```text
@@ -113,6 +117,58 @@ In Colab:
 8. Train EfficientNet-B0.
 9. Evaluate `outputs/checkpoints/best.pt`.
 10. Copy outputs back to Drive.
+
+## Example Colab inference result
+
+The model trained in the Colab notebook above was tested on this uploaded example image:
+
+![Example skin image](docs/images/vitiligo-example.jpg)
+
+Colab upload and inference run:
+
+![Colab inference output](docs/images/colab-inference-example.png)
+
+Example command:
+
+```bash
+python src/inference.py \
+  --checkpoint outputs/checkpoints/best.pt \
+  --image melanoma.jpg \
+  --top_k 5
+```
+
+Example output:
+
+```json
+{
+  "top_predictions": [
+    {
+      "label": "Pigmentary Disorders",
+      "probability": 0.638876
+    },
+    {
+      "label": "Inflammatory Disorders",
+      "probability": 0.175527
+    },
+    {
+      "label": "Infectious Disorders",
+      "probability": 0.125669
+    },
+    {
+      "label": "Other skin disorders",
+      "probability": 0.036746
+    },
+    {
+      "label": "No Definite Diagnosis",
+      "probability": 0.012299
+    }
+  ],
+  "confidence_level": "moderate",
+  "disclaimer": "Research-only. Not a diagnosis. Doctor review required. Non-commercial use only. Not for clinical deployment."
+}
+```
+
+This example shows the model assigning the highest probability to `Pigmentary Disorders` for the uploaded test image. This remains a research-only output and requires doctor review.
 
 ## Optional HAM10000 / ISIC-Style Dermoscopy Model
 
