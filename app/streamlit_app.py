@@ -146,11 +146,40 @@ def render_patient_intake() -> None:
         with col_c:
             occupation = st.text_input("Occupation", value=st.session_state.patient_intake.get("occupation", ""))
             education = st.text_input("Education", value=st.session_state.patient_intake.get("education", ""))
+        body_part_affected = st.text_input(
+            "Location / body part affected",
+            value=st.session_state.patient_intake.get("body_part_affected", ""),
+        )
         chief_complaint = st.text_area(
             "Chief complaint in patient's words",
             value=st.session_state.patient_intake.get("chief_complaint", ""),
             height=90,
         )
+        st.markdown("**Lesion metadata from image review / model**")
+        meta_a, meta_b, meta_c, meta_d = st.columns(4)
+        with meta_a:
+            lesion_color = st.text_input("Color", value=st.session_state.patient_intake.get("lesion_color", ""))
+            lesion_shape = st.text_input("Shape", value=st.session_state.patient_intake.get("lesion_shape", ""))
+        with meta_b:
+            lesion_border = st.text_input("Border", value=st.session_state.patient_intake.get("lesion_border", ""))
+            lesion_size = st.text_input("Size", value=st.session_state.patient_intake.get("lesion_size", ""))
+        with meta_c:
+            lesion_pattern = st.text_input("Pattern", value=st.session_state.patient_intake.get("lesion_pattern", ""))
+            lesion_pigmentation = st.text_input("Pigmentation", value=st.session_state.patient_intake.get("lesion_pigmentation", ""))
+        with meta_d:
+            lesion_surface_change = st.text_input(
+                "Scaling / crusting / ulceration",
+                value=st.session_state.patient_intake.get("lesion_surface_change", ""),
+            )
+            lesion_count = st.selectbox(
+                "Single or multiple lesions",
+                ["Not specified", "Single", "Multiple"],
+                index=["Not specified", "Single", "Multiple"].index(
+                    st.session_state.patient_intake.get("lesion_count", "Not specified")
+                    if st.session_state.patient_intake.get("lesion_count", "Not specified") in {"Not specified", "Single", "Multiple"}
+                    else "Not specified"
+                ),
+            )
         submitted = st.form_submit_button("Save Intake")
 
     if submitted:
@@ -161,7 +190,16 @@ def render_patient_intake() -> None:
             "region": region,
             "occupation": occupation,
             "education": education,
+            "body_part_affected": body_part_affected,
             "chief_complaint": chief_complaint,
+            "lesion_color": lesion_color,
+            "lesion_shape": lesion_shape,
+            "lesion_border": lesion_border,
+            "lesion_size": lesion_size,
+            "lesion_pattern": lesion_pattern,
+            "lesion_pigmentation": lesion_pigmentation,
+            "lesion_surface_change": lesion_surface_change,
+            "lesion_count": lesion_count,
         }
         st.success("Intake saved.")
 
@@ -279,7 +317,11 @@ def render_questions() -> None:
         st.info("Add model or manual predictions first.")
         return
 
-    preview_engine = run_engine(predictions_payload, answers=st.session_state.answers)
+    preview_engine = run_engine(
+        predictions_payload,
+        answers=st.session_state.answers,
+        patient_context=st.session_state.patient_intake,
+    )
     questions = preview_engine["questions"]
     answers: dict[str, Any] = {}
     with st.form("adaptive_questions_form"):
@@ -310,7 +352,11 @@ def render_questions() -> None:
 
     if submitted:
         st.session_state.answers = answers
-        st.session_state.engine_output = run_engine(predictions_payload, answers=answers)
+        st.session_state.engine_output = run_engine(
+            predictions_payload,
+            answers=answers,
+            patient_context=st.session_state.patient_intake,
+        )
         st.success("Adaptive scoring complete.")
 
     if st.session_state.engine_output:

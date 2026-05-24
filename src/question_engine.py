@@ -244,6 +244,130 @@ QUESTION_PROFILES: dict[str, dict[str, Any]] = {
 }
 
 
+LABEL_ALIASES: dict[str, str] = {
+    "mel": "Melanoma",
+    "melanoma": "Melanoma",
+    "nv": "Melanocytic nevus",
+    "nevus": "Melanocytic nevus",
+    "mole": "Melanocytic nevus",
+    "melanocytic nevus": "Melanocytic nevus",
+    "melanocytic nevi": "Melanocytic nevus",
+    "bcc": "Basal cell carcinoma",
+    "basal cell carcinoma": "Basal cell carcinoma",
+    "bkl": "Benign keratosis-like lesion",
+    "seborrheic keratosis": "Benign keratosis-like lesion",
+    "benign keratosis like lesions": "Benign keratosis-like lesion",
+    "akiec": "Actinic keratosis / intraepithelial carcinoma",
+    "actinic keratosis": "Actinic keratosis / intraepithelial carcinoma",
+    "bowen disease": "Actinic keratosis / intraepithelial carcinoma",
+    "df": "Dermatofibroma",
+    "dermatofibroma": "Dermatofibroma",
+    "vasc": "Vascular lesion",
+    "vascular lesion": "Vascular lesion",
+    "angioma": "Vascular lesion",
+    "hemangioma": "Vascular lesion",
+    "tinea corporis": "Tinea corporis",
+    "tinea capitis": "Tinea capitis",
+    "tinea cruris": "Tinea cruris",
+    "furuncle": "Furuncle",
+    "carbuncle": "Carbuncle",
+    "bacterial infection": "Bacterial infection",
+    "vitiligo": "Vitiligo",
+    "pityriasis versicolor": "Pityriasis versicolor",
+    "eczema": "Eczema",
+    "contact dermatitis": "Contact dermatitis",
+    "psoriasis": "Psoriasis",
+}
+
+DISEASE_GROUPS: dict[str, set[str]] = {
+    "infective": {
+        "Tinea corporis",
+        "Tinea capitis",
+        "Tinea cruris",
+        "Furuncle",
+        "Carbuncle",
+        "Bacterial infection",
+        "Pityriasis versicolor",
+    },
+    "pigmented": {
+        "Melanoma",
+        "Melanocytic nevus",
+        "Basal cell carcinoma",
+        "Benign keratosis-like lesion",
+        "Actinic keratosis / intraepithelial carcinoma",
+        "Dermatofibroma",
+        "Vascular lesion",
+    },
+    "depigmented": {
+        "Vitiligo",
+        "Pityriasis versicolor",
+    },
+    "inflammatory": {
+        "Eczema",
+        "Contact dermatitis",
+        "Psoriasis",
+    },
+}
+
+DIAGNOSIS_GUIDED_COMMON_QUESTIONS: list[dict[str, Any]] = [
+    {"id": "lesion_duration", "section": "history_of_presenting_illness", "text": "Since when is the lesion present?", "clinical_relevance": 3, "discrimination_power": 2, "red_flag_importance": 1, "patient_burden": 1, "groups": ["general"]},
+    {"id": "lesion_onset_pattern", "section": "history_of_presenting_illness", "text": "Was the onset sudden or gradual?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["general"]},
+    {"id": "lesion_progression", "section": "history_of_presenting_illness", "text": "Is the lesion increasing, decreasing, or stable?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 2, "patient_burden": 1, "groups": ["general"]},
+    {"id": "color_change", "section": "history_of_presenting_illness", "text": "Has the color changed?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 2, "patient_burden": 1, "groups": ["general", "pigmented", "depigmented"]},
+    {"id": "shape_change", "section": "history_of_presenting_illness", "text": "Has the shape changed?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 2, "patient_burden": 1, "groups": ["general", "pigmented"]},
+    {"id": "size_change", "section": "history_of_presenting_illness", "text": "Has the size changed?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 2, "patient_burden": 1, "groups": ["general"]},
+    {"id": "itching", "section": "history_of_presenting_illness", "text": "Is there itching?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective", "inflammatory"]},
+    {"id": "pain", "section": "history_of_presenting_illness", "text": "Is there pain?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 2, "patient_burden": 1, "groups": ["infective", "pigmented"]},
+    {"id": "burning_sensation", "section": "history_of_presenting_illness", "text": "Is there burning sensation?", "clinical_relevance": 1, "discrimination_power": 1, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective", "inflammatory"]},
+    {"id": "discharge_pus_bleeding_crusting_ulceration", "section": "history_of_presenting_illness", "text": "Is there discharge, pus, bleeding, crusting, or ulceration?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 3, "patient_burden": 1, "groups": ["general"]},
+    {"id": "single_or_multiple", "section": "history_of_presenting_illness", "text": "Is it present at one site or multiple sites?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["general"]},
+    {"id": "fever", "section": "history_of_presenting_illness", "text": "Any fever?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 2, "patient_burden": 1, "groups": ["infective"]},
+    {"id": "family_similar_lesions", "section": "family_history", "text": "Any similar lesion in family members?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective", "depigmented"]},
+    {"id": "previous_similar_episode", "section": "past_treatment_history", "text": "Any previous similar episode?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["general"]},
+    {"id": "diabetes", "section": "personal_history", "text": "Any history of diabetes?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 2, "patient_burden": 1, "groups": ["infective"]},
+    {"id": "immune_suppression", "section": "personal_history", "text": "Any immune suppression, HIV, steroid use, or chemotherapy?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 2, "patient_burden": 1, "groups": ["general"]},
+]
+
+DIAGNOSIS_GUIDED_SPECIFIC_QUESTIONS: list[dict[str, Any]] = [
+    {"id": "ring_shaped", "section": "history_of_presenting_illness", "text": "Is the lesion ring-shaped?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective"], "labels": ["Tinea corporis", "Tinea cruris", "Tinea capitis"]},
+    {"id": "central_clearing", "section": "history_of_presenting_illness", "text": "Is there central clearing?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective"], "labels": ["Tinea corporis", "Tinea cruris"]},
+    {"id": "scaling_at_border", "section": "history_of_presenting_illness", "text": "Is there scaling at the border?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective", "depigmented"], "labels": ["Tinea corporis", "Tinea cruris", "Pityriasis versicolor"]},
+    {"id": "spreading_outward", "section": "history_of_presenting_illness", "text": "Is it spreading outward?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 1, "patient_burden": 1, "groups": ["infective"], "labels": ["Tinea corporis", "Tinea cruris", "Tinea capitis"]},
+    {"id": "shared_towels_clothes", "section": "personal_history", "text": "Any sharing of towels or clothes?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective"], "labels": ["Tinea corporis", "Tinea cruris", "Tinea capitis"]},
+    {"id": "excessive_sweating", "section": "personal_history", "text": "Any excessive sweating?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective"], "labels": ["Tinea corporis", "Tinea cruris", "Tinea capitis"]},
+    {"id": "steroid_cream_use", "section": "past_treatment_history", "text": "Any steroid cream use?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective"], "labels": ["Tinea corporis", "Tinea cruris", "Tinea capitis"]},
+    {"id": "swelling", "section": "history_of_presenting_illness", "text": "Is there swelling?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 2, "patient_burden": 1, "groups": ["infective"], "labels": ["Furuncle", "Carbuncle", "Bacterial infection"]},
+    {"id": "pus_or_discharge", "section": "history_of_presenting_illness", "text": "Is there pus or discharge?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 2, "patient_burden": 1, "groups": ["infective"], "labels": ["Furuncle", "Carbuncle", "Bacterial infection"]},
+    {"id": "warm_to_touch", "section": "history_of_presenting_illness", "text": "Is the area warm to touch?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 2, "patient_burden": 1, "groups": ["infective"], "labels": ["Furuncle", "Carbuncle", "Bacterial infection"]},
+    {"id": "recurrent_boils", "section": "past_treatment_history", "text": "Any recurrent boils?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 1, "patient_burden": 1, "groups": ["infective"], "labels": ["Furuncle", "Carbuncle", "Bacterial infection"]},
+    {"id": "recent_trauma_shaving_friction", "section": "past_treatment_history", "text": "Any recent trauma, shaving, or friction?", "clinical_relevance": 1, "discrimination_power": 1, "red_flag_importance": 0, "patient_burden": 1, "groups": ["infective"], "labels": ["Furuncle", "Carbuncle", "Bacterial infection"]},
+    {"id": "present_since_childhood_or_recent", "section": "history_of_presenting_illness", "text": "Was it present since childhood or did it appear recently?", "clinical_relevance": 2, "discrimination_power": 3, "red_flag_importance": 1, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma", "Melanocytic nevus"]},
+    {"id": "asymmetry", "section": "history_of_presenting_illness", "text": "Is it asymmetrical?", "clinical_relevance": 3, "discrimination_power": 4, "red_flag_importance": 2, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma"]},
+    {"id": "irregular_border", "section": "history_of_presenting_illness", "text": "Are the borders irregular?", "clinical_relevance": 3, "discrimination_power": 4, "red_flag_importance": 2, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma"]},
+    {"id": "multiple_colors_dark_areas", "section": "history_of_presenting_illness", "text": "Is there color variation or very dark areas?", "clinical_relevance": 3, "discrimination_power": 4, "red_flag_importance": 2, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma"]},
+    {"id": "diameter_gt_6mm", "section": "history_of_presenting_illness", "text": "Is the diameter greater than 6 mm?", "clinical_relevance": 2, "discrimination_power": 3, "red_flag_importance": 1, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma"]},
+    {"id": "bleeding_or_ulceration", "section": "history_of_presenting_illness", "text": "Is there bleeding or ulceration?", "clinical_relevance": 3, "discrimination_power": 3, "red_flag_importance": 3, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma", "Basal cell carcinoma", "Actinic keratosis / intraepithelial carcinoma"]},
+    {"id": "family_history_skin_cancer", "section": "family_history", "text": "Any family history of melanoma or skin cancer?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 1, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma"]},
+    {"id": "excessive_sun_exposure", "section": "personal_history", "text": "Any excessive sun exposure, tanning, or radiation exposure?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 1, "patient_burden": 1, "groups": ["pigmented"], "labels": ["Melanoma", "Basal cell carcinoma", "Actinic keratosis / intraepithelial carcinoma"]},
+    {"id": "white_hair_over_patch", "section": "history_of_presenting_illness", "text": "Any white hair over the patch?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["depigmented"], "labels": ["Vitiligo"]},
+    {"id": "thyroid_or_autoimmune_disease", "section": "personal_history", "text": "Any thyroid or autoimmune disease?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["depigmented"], "labels": ["Vitiligo"]},
+    {"id": "loss_of_sensation", "section": "history_of_presenting_illness", "text": "Is there loss of sensation over the patch?", "clinical_relevance": 3, "discrimination_power": 4, "red_flag_importance": 2, "patient_burden": 1, "groups": ["depigmented"], "labels": ["Vitiligo", "Pityriasis versicolor"]},
+    {"id": "scaling_over_patch", "section": "history_of_presenting_illness", "text": "Is there scaling over the patch?", "clinical_relevance": 2, "discrimination_power": 3, "red_flag_importance": 0, "patient_burden": 1, "groups": ["depigmented"], "labels": ["Pityriasis versicolor", "Vitiligo"]},
+    {"id": "new_contact_exposure", "section": "history_of_presenting_illness", "text": "Any new soap, cosmetic, detergent, metal, footwear, plant, or occupational exposure?", "clinical_relevance": 2, "discrimination_power": 3, "red_flag_importance": 0, "patient_burden": 1, "groups": ["inflammatory"], "labels": ["Eczema", "Contact dermatitis"]},
+    {"id": "scaling_plaques", "section": "history_of_presenting_illness", "text": "Any scaling plaques?", "clinical_relevance": 2, "discrimination_power": 2, "red_flag_importance": 0, "patient_burden": 1, "groups": ["inflammatory"], "labels": ["Psoriasis", "Eczema"]},
+]
+
+RED_FLAG_ANSWER_IDS: dict[str, str] = {
+    "lesion_progression": "Rapidly spreading lesion",
+    "pain": "Severe pain",
+    "fever": "Fever associated with lesion",
+    "pus_or_discharge": "Pus or discharge with swelling",
+    "bleeding_or_ulceration": "Bleeding or ulceration",
+    "loss_of_sensation": "Loss of sensation over patch",
+    "immune_suppression": "Immunocompromised patient",
+}
+
+
 @dataclass
 class Prediction:
     label: str
@@ -252,6 +376,33 @@ class Prediction:
 
 def normalize_label(value: str) -> str:
     return value.strip().lower().replace("_", " ").replace("-", " ")
+
+
+def canonical_label(label: str) -> str:
+    normalized = normalize_label(label)
+    return LABEL_ALIASES.get(normalized, str(label).strip())
+
+
+def diagnosis_group_for_label(label: str) -> str:
+    canonical = canonical_label(label)
+    for group_name, labels in DISEASE_GROUPS.items():
+        if canonical in labels:
+            return group_name
+    return "general"
+
+
+def flatten_prediction_payload(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> list[Prediction]:
+    if is_combined_payload(predictions_payload):
+        rows: list[Prediction] = []
+        for branch_payload in predictions_payload["branches"].values():
+            rows.extend(parse_predictions(branch_payload))
+        return rows
+    return parse_predictions(predictions_payload)
+
+
+def diagnosis_guided_supported(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> bool:
+    predictions = flatten_prediction_payload(predictions_payload)
+    return any(diagnosis_group_for_label(prediction.label) != "general" for prediction in predictions)
 
 
 def answer_is_positive(value: Any) -> bool | None:
@@ -322,6 +473,290 @@ def unique_strings(values: list[str]) -> list[str]:
             ordered.append(value)
             seen.add(value)
     return ordered
+
+
+def prediction_score_map(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    for prediction in flatten_prediction_payload(predictions_payload):
+        label = canonical_label(prediction.label)
+        scores[label] = scores.get(label, 0.0) + float(prediction.probability)
+    return scores
+
+
+def diagnosis_groups_from_predictions(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> list[str]:
+    groups = [diagnosis_group_for_label(prediction.label) for prediction in flatten_prediction_payload(predictions_payload)]
+    ordered: list[str] = []
+    for group_name in groups:
+        if group_name not in ordered:
+            ordered.append(group_name)
+    return ordered or ["general"]
+
+
+def diagnosis_group_score_map(predictions_payload: dict[str, Any] | list[dict[str, Any]]) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    for label, score in prediction_score_map(predictions_payload).items():
+        group_name = diagnosis_group_for_label(label)
+        scores[group_name] = scores.get(group_name, 0.0) + score
+    return scores
+
+
+def model_relevance_for_question(question: dict[str, Any], label_scores: dict[str, float], active_groups: list[str]) -> float:
+    relevance = 0.0
+    question_groups = set(question.get("groups", []))
+    question_labels = {canonical_label(label) for label in question.get("labels", [])}
+    has_specific_labels = bool(question_labels)
+    for label, score in label_scores.items():
+        if label in question_labels:
+            relevance += score
+            continue
+        if has_specific_labels:
+            if diagnosis_group_for_label(label) in question_groups:
+                relevance += score * 0.15
+            continue
+        if "general" in question_groups:
+            relevance += score * 0.15
+            continue
+        if diagnosis_group_for_label(label) in question_groups:
+            relevance += score
+    if question_groups.intersection(active_groups):
+        relevance += 0.1
+    return relevance
+
+
+def score_diagnosis_guided_question(
+    question: dict[str, Any],
+    label_scores: dict[str, float],
+    active_groups: list[str],
+    asked_questions: set[str],
+) -> float:
+    score = 0.0
+    score += float(question.get("clinical_relevance", 0)) * 2.0
+    score += float(question.get("discrimination_power", 0)) * 3.0
+    score += float(question.get("red_flag_importance", 0)) * 4.0
+    score += model_relevance_for_question(question, label_scores, active_groups) * 8.0
+    if question["id"] in asked_questions:
+        score -= 100.0
+    score -= float(question.get("patient_burden", 0))
+    return score
+
+
+def diagnosis_guided_question_candidates(
+    predictions_payload: dict[str, Any] | list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    active_groups = diagnosis_groups_from_predictions(predictions_payload)
+    label_scores = prediction_score_map(predictions_payload)
+    group_scores = diagnosis_group_score_map(predictions_payload)
+    dominant_label = max(label_scores.items(), key=lambda item: item[1])[0] if label_scores else None
+    ranked_common: list[tuple[float, dict[str, Any]]] = []
+    ranked_specific: list[tuple[float, dict[str, Any]]] = []
+
+    for question in DIAGNOSIS_GUIDED_COMMON_QUESTIONS + DIAGNOSIS_GUIDED_SPECIFIC_QUESTIONS:
+        groups = set(question.get("groups", []))
+        if "general" not in groups and not groups.intersection(active_groups):
+            continue
+        model_relevance = model_relevance_for_question(question, label_scores, active_groups)
+        if "general" not in groups:
+            branch_weight = max((group_scores.get(group_name, 0.0) for group_name in groups), default=0.0)
+            if branch_weight < 0.12:
+                continue
+            model_relevance += branch_weight
+        rank = score_diagnosis_guided_question(question, label_scores, active_groups, set()) + model_relevance * 6.0
+        if question in DIAGNOSIS_GUIDED_COMMON_QUESTIONS:
+            ranked_common.append((rank, question))
+        else:
+            ranked_specific.append((rank, question))
+
+    ranked_common.sort(key=lambda item: item[0], reverse=True)
+    ranked_specific.sort(key=lambda item: item[0], reverse=True)
+
+    questions: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    dominant_specific = []
+    if dominant_label:
+        for rank, question in ranked_specific:
+            if dominant_label in {canonical_label(label) for label in question.get("labels", [])}:
+                dominant_specific.append((rank + 4.0, question))
+        dominant_specific.sort(key=lambda item: item[0], reverse=True)
+
+    ordered_specific = dominant_specific[:4] + ranked_specific
+    for rank, question in ranked_common[:8] + ordered_specific:
+        if question["id"] in seen_ids:
+            continue
+        copied = deepcopy(question)
+        copied["type"] = "adaptive"
+        copied["profile"] = "diagnosis_guided"
+        copied["priority_score"] = round(rank, 4)
+        questions.append(copied)
+        seen_ids.add(copied["id"])
+    return questions
+
+
+def apply_metadata_bias(scores: dict[str, float], patient_context: dict[str, Any] | None) -> dict[str, float]:
+    if not patient_context:
+        return scores
+    updated = dict(scores)
+    body_part = normalize_label(str(patient_context.get("body_part_affected", "")))
+    color = normalize_label(str(patient_context.get("lesion_color", "")))
+    pattern = normalize_label(str(patient_context.get("lesion_pattern", "")))
+    scaling = normalize_label(str(patient_context.get("lesion_surface_change", "")))
+    pigmentation = normalize_label(str(patient_context.get("lesion_pigmentation", "")))
+
+    if "groin" in body_part or "thigh" in body_part:
+        updated["Tinea cruris"] = updated.get("Tinea cruris", 0.0) + 0.15
+    if "scalp" in body_part:
+        updated["Tinea capitis"] = updated.get("Tinea capitis", 0.0) + 0.15
+    if any(token in body_part for token in ["body", "forearm", "arm", "trunk"]):
+        updated["Tinea corporis"] = updated.get("Tinea corporis", 0.0) + 0.1
+    if any(token in pattern for token in ["ring", "annular", "central clearing"]):
+        updated["Tinea corporis"] = updated.get("Tinea corporis", 0.0) + 0.2
+    if "scale" in scaling or "crust" in scaling:
+        updated["Pityriasis versicolor"] = updated.get("Pityriasis versicolor", 0.0) + 0.08
+        updated["Psoriasis"] = updated.get("Psoriasis", 0.0) + 0.08
+    if any(token in pigmentation for token in ["depigmented", "white", "hypopigmented"]):
+        updated["Vitiligo"] = updated.get("Vitiligo", 0.0) + 0.15
+    if any(token in color for token in ["black", "dark brown", "variegated"]):
+        updated["Melanoma"] = updated.get("Melanoma", 0.0) + 0.12
+    return updated
+
+
+def update_diagnosis_guided_scores(
+    base_scores: dict[str, float],
+    answers: dict[str, Any],
+    patient_context: dict[str, Any] | None,
+) -> tuple[dict[str, float], list[str], list[str]]:
+    scores = apply_metadata_bias(base_scores, patient_context)
+    question_lookup = {
+        question["id"]: question
+        for question in (DIAGNOSIS_GUIDED_COMMON_QUESTIONS + DIAGNOSIS_GUIDED_SPECIFIC_QUESTIONS)
+    }
+    key_positive: list[str] = []
+    key_negative: list[str] = []
+
+    for answer_id, raw_answer in answers.items():
+        positive = answer_is_positive(raw_answer)
+        if positive is None:
+            continue
+        question = question_lookup.get(answer_id)
+        if not question:
+            continue
+        weight = 0.04 * (
+            float(question.get("clinical_relevance", 0))
+            + float(question.get("discrimination_power", 0))
+            + float(question.get("red_flag_importance", 0))
+        )
+        target_labels = [canonical_label(label) for label in question.get("labels", [])]
+        target_groups = question.get("groups", [])
+
+        if positive:
+            key_positive.append(question["text"])
+            if target_labels:
+                for label in target_labels:
+                    scores[label] = scores.get(label, 0.0) + weight
+            for label in list(scores):
+                if diagnosis_group_for_label(label) in target_groups:
+                    scores[label] += weight * 0.4
+        else:
+            key_negative.append(question["text"])
+            if target_labels:
+                for label in target_labels:
+                    scores[label] = max(0.0, scores.get(label, 0.0) - weight * 0.6)
+    return scores, unique_strings(key_positive), unique_strings(key_negative)
+
+
+def melanoma_rule_score(answers: dict[str, Any]) -> int:
+    score = 0
+    if answer_is_positive(answers.get("asymmetry")) is True:
+        score += 1
+    if answer_is_positive(answers.get("irregular_border")) is True:
+        score += 1
+    if answer_is_positive(answers.get("multiple_colors_dark_areas")) is True or answer_is_positive(answers.get("color_change")) is True:
+        score += 1
+    if answer_is_positive(answers.get("diameter_gt_6mm")) is True:
+        score += 1
+    if answer_is_positive(answers.get("shape_change")) is True or answer_is_positive(answers.get("size_change")) is True:
+        score += 2
+    if answer_is_positive(answers.get("bleeding_or_ulceration")) is True:
+        score += 2
+    return score
+
+
+def diagnosis_guided_red_flags(answers: dict[str, Any]) -> list[dict[str, Any]]:
+    red_flags: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    if isinstance(answers.get("lesion_progression"), str) and "rapid" in str(answers.get("lesion_progression")).lower():
+        red_flags.append({"id": "lesion_progression", "text": "Rapidly spreading lesion", "weight": 2})
+        seen.add("lesion_progression")
+    for answer_id, flag_text in RED_FLAG_ANSWER_IDS.items():
+        positive = answer_is_positive(answers.get(answer_id))
+        if positive is True and answer_id not in seen:
+            weight = 2 if answer_id in {"fever", "bleeding_or_ulceration", "loss_of_sensation", "immune_suppression"} else 1
+            red_flags.append({"id": answer_id, "text": flag_text, "weight": weight})
+            seen.add(answer_id)
+    if answer_is_positive(answers.get("diabetes")) is True and (
+        answer_is_positive(answers.get("pus_or_discharge")) is True
+        or answer_is_positive(answers.get("fever")) is True
+        or answer_is_positive(answers.get("swelling")) is True
+    ):
+        red_flags.append({"id": "diabetes_infection", "text": "Diabetic patient with possible skin infection", "weight": 2})
+    return red_flags
+
+
+def diagnosis_guided_urgency(
+    answers: dict[str, Any],
+    red_flags: list[dict[str, Any]],
+    differential: list[dict[str, Any]],
+) -> dict[str, str]:
+    melanoma_score = melanoma_rule_score(answers)
+    red_flag_weight = sum(int(flag.get("weight", 1)) for flag in red_flags)
+    if melanoma_score >= 4:
+        return {"level": "urgent dermatologist review", "review_priority": "Urgent dermatologist referral is recommended because the lesion may be suspicious."}
+    if red_flag_weight >= 3:
+        return {"level": "urgent dermatologist review", "review_priority": "Urgent in-person clinician review is recommended because red flags were detected."}
+    if red_flags:
+        return {"level": "routine dermatologist review", "review_priority": "Clinician review is required sooner if symptoms worsen or new warning signs appear."}
+    top_label = differential[0]["display_name"] if differential else "skin lesion"
+    return {"level": "routine dermatologist review", "review_priority": f"Routine dermatologist review recommended for {top_label.lower()} interpretation."}
+
+
+def diagnosis_guided_differential_rows(scores: dict[str, float]) -> list[dict[str, Any]]:
+    normalized = normalize_scores(scores)
+    rows: list[dict[str, Any]] = []
+    for label, score in sorted(normalized.items(), key=lambda item: item[1], reverse=True):
+        rows.append(
+            {
+                "diagnosis": label,
+                "display_name": label,
+                "group": diagnosis_group_for_label(label),
+                "score": round(score, 4),
+            }
+        )
+    return rows
+
+
+def score_diagnosis_guided_answers(
+    predictions_payload: dict[str, Any] | list[dict[str, Any]],
+    answers: dict[str, Any],
+    patient_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    base_scores = prediction_score_map(predictions_payload)
+    updated_scores, key_positive, key_negative = update_diagnosis_guided_scores(base_scores, answers, patient_context)
+    differential = diagnosis_guided_differential_rows(updated_scores)
+    red_flags = diagnosis_guided_red_flags(answers)
+    urgency = diagnosis_guided_urgency(answers, red_flags, differential)
+    return {
+        "profile": "diagnosis_guided",
+        "profile_display_name": "Abhigyan Algorithm",
+        "candidate_type": "diagnosis",
+        "updated_differential": differential,
+        "urgency_level": urgency["level"],
+        "doctor_review_priority": urgency["review_priority"],
+        "red_flags": red_flags,
+        "key_positive_answers": key_positive,
+        "key_negative_answers": key_negative,
+        "disease_groups": diagnosis_groups_from_predictions(predictions_payload),
+        "melanoma_rule_score": melanoma_rule_score(answers),
+        "disclaimer": DISCLAIMER_TEXT,
+    }
 
 
 def detect_profile(predictions: list[Prediction]) -> str:
@@ -639,7 +1074,23 @@ def run_engine(
     predictions_payload: dict[str, Any] | list[dict[str, Any]],
     answers: dict[str, Any] | None = None,
     max_category_questions: int = 12,
+    patient_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if diagnosis_guided_supported(predictions_payload):
+        questions = diagnosis_guided_question_candidates(predictions_payload)[:max_category_questions]
+        scoring = score_diagnosis_guided_answers(
+            predictions_payload,
+            answers or {},
+            patient_context=patient_context,
+        )
+        return {
+            "profile": "diagnosis_guided",
+            "profile_display_name": "Abhigyan Algorithm",
+            "questions": questions,
+            "scoring": scoring,
+            "disclaimer": DISCLAIMER_TEXT,
+        }
+
     if is_combined_payload(predictions_payload):
         branches = predictions_payload["branches"]
         opd_questions = get_adaptive_questions(
@@ -683,6 +1134,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run adaptive OPD-style question engine.")
     parser.add_argument("--predictions", required=True, help="JSON file or JSON string with top_predictions")
     parser.add_argument("--answers", default=None, help="Optional JSON file or JSON string with answers")
+    parser.add_argument("--patient_context", default=None, help="Optional JSON file or JSON string with patient and lesion context")
     parser.add_argument("--output", default=None, help="Optional path to save engine output JSON")
     parser.add_argument("--max_category_questions", type=int, default=12)
     return parser.parse_args()
@@ -700,7 +1152,13 @@ def main() -> None:
     args = parse_args()
     predictions = load_json_arg(args.predictions)
     answers = load_json_arg(args.answers) if args.answers else {}
-    result = run_engine(predictions, answers=answers, max_category_questions=args.max_category_questions)
+    patient_context = load_json_arg(args.patient_context) if args.patient_context else None
+    result = run_engine(
+        predictions,
+        answers=answers,
+        max_category_questions=args.max_category_questions,
+        patient_context=patient_context,
+    )
     if args.output:
         write_json(args.output, result)
     print(json.dumps(result, indent=2, ensure_ascii=True))

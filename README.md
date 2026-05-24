@@ -327,19 +327,32 @@ python src/inference.py \
 
 ## Run adaptive question engine
 
+The primary adaptive workflow is now the `Abhigyan Algorithm`.
+
+It uses:
+
+- lesion-image top-k predictions
+- patient basics
+- body-part affected
+- lesion metadata such as color, shape, border, size, pattern, pigmentation, and scaling or ulceration
+- red-flag answers collected during questioning
+
+The algorithm does not make an autonomous diagnosis. It ranks likely disease groups, asks common lesion-history questions first, then adds disease-specific questions for patterns such as tinea, furuncle or carbuncle, suspicious pigmented lesions, and depigmented lesions.
+
 Use model predictions from `src/inference.py` or provide equivalent JSON:
 
 ```bash
 python src/question_engine.py \
   --predictions '{"top_predictions":[{"label":"tinea corporis","probability":0.42},{"label":"eczema","probability":0.21}]}' \
-  --answers '{"ring_shaped":true,"scaling_border":true,"steroid_combination_cream":true,"fever_or_chills":false}' \
+  --patient_context '{"age":34,"sex":"female","occupation":"teacher","body_part_affected":"forearm","chief_complaint":"itchy circular rash for three weeks","lesion_color":"red","lesion_shape":"annular","lesion_border":"raised","lesion_size":"2 cm","lesion_pattern":"ring with central clearing","lesion_pigmentation":"erythematous","lesion_surface_change":"mild scaling","lesion_count":"Single"}' \
+  --answers '{"lesion_duration":"3 weeks","lesion_progression":"gradually increasing","itching":true,"ring_shaped":true,"central_clearing":true,"scaling_at_border":true,"pain":false,"fever":false}' \
   --output outputs/predictions/question_engine_output.json
 ```
 
 The output includes:
 
-- adaptive questions
-- updated broad-category differential
+- adaptive questions selected by the Abhigyan Algorithm
+- updated diagnosis-guided differential
 - red flags
 - urgency level
 - doctor review priority
@@ -349,13 +362,22 @@ The output includes:
 
 ```bash
 python src/summary_generator.py \
-  --patient '{"patient_id":"P001","age":34,"sex":"female","region":"Karnataka","occupation":"teacher","education":"graduate","chief_complaint":"itchy circular rash for two weeks"}' \
-  --predictions '{"top_predictions":[{"label":"tinea corporis","probability":0.42},{"label":"eczema","probability":0.21}],"confidence_level":"low"}' \
+  --patient '{"patient_id":"P001","age":34,"sex":"female","region":"Karnataka","occupation":"teacher","education":"graduate","body_part_affected":"forearm","chief_complaint":"itchy circular rash for three weeks","lesion_color":"red","lesion_shape":"annular","lesion_border":"raised","lesion_size":"2 cm","lesion_pattern":"ring with central clearing","lesion_pigmentation":"erythematous","lesion_surface_change":"mild scaling","lesion_count":"Single"}' \
+  --predictions '{"top_predictions":[{"label":"tinea corporis","probability":0.42},{"label":"furuncle","probability":0.22},{"label":"melanoma","probability":0.18},{"label":"vitiligo","probability":0.10}],"confidence_level":"low"}' \
   --engine_output outputs/predictions/question_engine_output.json \
-  --answers '{"ring_shaped":true,"scaling_border":true,"steroid_combination_cream":true,"fever_or_chills":false}' \
+  --answers '{"lesion_duration":"3 weeks","lesion_progression":"gradually increasing","itching":true,"ring_shaped":true,"central_clearing":true,"scaling_at_border":true,"pain":false,"fever":false}' \
   --output_json outputs/predictions/opd_summary.json \
   --output_txt outputs/predictions/opd_summary.txt
 ```
+
+The summary now includes:
+
+- doctor-style chief complaint and HPI
+- patient-entered body-part and lesion metadata
+- model differential
+- relevant positives and negatives
+- red flags
+- suggested triage for doctor review
 
 ## Launch Streamlit demo
 
@@ -363,7 +385,7 @@ python src/summary_generator.py \
 streamlit run app/streamlit_app.py
 ```
 
-The app shows a required research-only disclaimer before the workflow. For a trained model, use the default checkpoint path `outputs/checkpoints/best.pt` or enter another checkpoint path in the app.
+The app shows a required research-only disclaimer before the workflow. It now collects patient basics, body-part affected, lesion metadata, adaptive questions from the Abhigyan Algorithm, and a doctor-style summary. For a trained model, use the default checkpoint path `outputs/checkpoints/best.pt` or enter another checkpoint path in the app.
 
 ## Publish to Hugging Face
 

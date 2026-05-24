@@ -30,6 +30,48 @@ def normalize_answer(value: Any) -> str:
     return str(value)
 
 
+def format_structured_hpi(patient_intake: dict[str, Any], answers: dict[str, Any]) -> str:
+    body_part = patient_intake.get("body_part_affected") or "unspecified site"
+    complaint = patient_intake.get("chief_complaint") or "skin lesion"
+    duration = answers.get("lesion_duration") or answers.get("duration") or "duration not recorded"
+    progression = answers.get("lesion_progression") or answers.get("progression") or "progression not recorded"
+
+    symptom_parts: list[str] = []
+    for answer_id, positive_text, negative_text in [
+        ("itching", "itching", "no itching"),
+        ("pain", "pain", "no pain"),
+        ("fever", "fever", "no fever"),
+        ("pus_or_discharge", "pus or discharge", "no pus or discharge"),
+        ("bleeding_or_ulceration", "bleeding or ulceration", "no bleeding or ulceration"),
+    ]:
+        value = answers.get(answer_id)
+        if isinstance(value, bool):
+            symptom_parts.append(positive_text if value else negative_text)
+
+    morphology_parts: list[str] = []
+    for answer_id, text in [
+        ("ring_shaped", "ring-shaped"),
+        ("central_clearing", "with central clearing"),
+        ("scaling_at_border", "with scaling at the border"),
+        ("asymmetry", "asymmetrical"),
+        ("irregular_border", "with irregular borders"),
+        ("multiple_colors_dark_areas", "with color variation or dark areas"),
+        ("white_hair_over_patch", "with white hair over the patch"),
+    ]:
+        if answers.get(answer_id) is True:
+            morphology_parts.append(text)
+
+    lines = [
+        f"Patient presents with {complaint} over the {body_part}.",
+        f"The lesion has been present for {duration} and is described as {progression}.",
+    ]
+    if symptom_parts:
+        lines.append(f"Associated symptoms: {', '.join(symptom_parts)}.")
+    if morphology_parts:
+        lines.append(f"Reported lesion features: {', '.join(morphology_parts)}.")
+    return " ".join(lines)
+
+
 def build_answer_sections(answers: dict[str, Any], questions: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
     sections = {key: {} for key in SECTION_LABELS}
     question_lookup = {question["id"]: question for question in questions}
@@ -133,7 +175,22 @@ def generate_summary(
             "address_or_region": patient_intake.get("address") or patient_intake.get("region"),
             "occupation": patient_intake.get("occupation"),
             "education": patient_intake.get("education"),
+            "body_part_affected": patient_intake.get("body_part_affected"),
             "chief_complaint": patient_intake.get("chief_complaint"),
+        },
+        "lesion_metadata": {
+            "color": patient_intake.get("lesion_color"),
+            "shape": patient_intake.get("lesion_shape"),
+            "border": patient_intake.get("lesion_border"),
+            "size": patient_intake.get("lesion_size"),
+            "pattern": patient_intake.get("lesion_pattern"),
+            "pigmentation": patient_intake.get("lesion_pigmentation"),
+            "surface_change": patient_intake.get("lesion_surface_change"),
+            "lesion_count": patient_intake.get("lesion_count"),
+        },
+        "doctor_style_history": {
+            "chief_complaint": patient_intake.get("chief_complaint") or "Not recorded",
+            "history_of_presenting_illness": format_structured_hpi(patient_intake, answers),
         },
         "ai_collected_hpi": answer_sections["history_of_presenting_illness"],
         "personal_history": answer_sections["personal_history"],
@@ -147,6 +204,8 @@ def generate_summary(
         },
         "adaptive_reasoning": {
             "questioning_profile": scoring.get("profile_display_name"),
+            "disease_groups": scoring.get("disease_groups", []),
+            "melanoma_rule_score": scoring.get("melanoma_rule_score"),
             "branch_differentials": scoring.get("branch_differentials", {}),
             "key_positive_answers": scoring.get("key_positive_answers", []),
             "key_negative_answers": scoring.get("key_negative_answers", []),
@@ -175,6 +234,15 @@ def summary_to_text(summary: dict[str, Any]) -> str:
     for key, value in summary["patient_entered"].items():
         lines.append(f"- {key.replace('_', ' ').title()}: {normalize_answer(value)}")
 
+    lines.extend(["", "Lesion metadata:"])
+    lesion_metadata = summary.get("lesion_metadata", {})
+    for key, value in lesion_metadata.items():
+        lines.append(f"- {key.replace('_', ' ').title()}: {normalize_answer(value)}")
+
+    lines.extend(["", "Doctor-style history:"])
+    lines.append(f"- Chief complaint: {normalize_answer(summary['doctor_style_history'].get('chief_complaint'))}")
+    lines.append(f"- History of presenting illness: {normalize_answer(summary['doctor_style_history'].get('history_of_presenting_illness'))}")
+
     for section_key, title in [
         ("ai_collected_hpi", "AI-collected HPI"),
         ("personal_history", "Personal history"),
@@ -200,6 +268,10 @@ def summary_to_text(summary: dict[str, Any]) -> str:
     reasoning = summary["adaptive_reasoning"]
     lines.extend(["", "Adaptive reasoning:"])
     lines.append(f"- Questioning profile: {normalize_answer(reasoning.get('questioning_profile'))}")
+    disease_groups = reasoning.get("disease_groups", [])
+    lines.append(f"- Disease groups considered: {', '.join(disease_groups) if disease_groups else 'Not recorded'}")
+    if reasoning.get("melanoma_rule_score") is not None:
+        lines.append(f"- Melanoma rule score: {normalize_answer(reasoning.get('melanoma_rule_score'))}")
     lines.append(f"- Key positive answers: {', '.join(reasoning['key_positive_answers']) or 'None recorded'}")
     lines.append(f"- Key negative answers: {', '.join(reasoning['key_negative_answers']) or 'None recorded'}")
     red_flags = [flag["text"] for flag in reasoning["red_flags"]]
