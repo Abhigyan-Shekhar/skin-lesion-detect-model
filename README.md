@@ -1,8 +1,12 @@
-# derm-opd-triage
+# Derm OPD Triage Research Prototype
 
-Research-only prototype for:
+Research-only prototype for image-guided adaptive history taking in dermatology OPD triage.
+
+Working title:
 
 `Image-Guided Adaptive History Taking for Dermatology OPD Triage in Indian Skin Disorders`
+
+The project combines lesion image classification, structured patient intake, adaptive follow-up questions, and a doctor-facing summary. It is designed for research workflow testing only.
 
 This repository is not a clinical product. It must not be used for autonomous diagnosis, treatment decisions, or clinical deployment.
 
@@ -13,6 +17,38 @@ This repository is not a clinical product. It must not be used for autonomous di
 - Not for medical diagnosis
 - Not for clinical deployment
 - Doctor review required
+
+## Demo Screenshots
+
+Research demo flow with bundled model selection, image upload, predictions, adaptive questions, and algorithm output.
+
+| Model selection and upload | Prediction output |
+| --- | --- |
+| ![Model selection and lesion upload](docs/images/app-screenshots/disclaimer-gate.jpeg) | ![Prediction output and algorithm note](docs/images/app-screenshots/patient-intake.jpeg) |
+
+| Algorithm output | Adaptive chat |
+| --- | --- |
+| ![Redacted algorithm output](docs/images/app-screenshots/model-output-redacted.jpeg) | ![Adaptive triage chat questions](docs/images/app-screenshots/adaptive-questions.jpeg) |
+
+| Chat-informed reasoning | Structured question payload |
+| --- | --- |
+| ![Chat-informed algorithm result](docs/images/app-screenshots/doctor-summary.jpeg) | ![Algorithm output payload](docs/images/app-screenshots/export-workflow.jpeg) |
+
+## What It Does
+
+- Loads trained dermatology image classifiers from local checkpoints.
+- Produces top-k broad-category predictions with confidence metadata.
+- Collects patient basics, body-part details, lesion morphology, and symptoms.
+- Runs the Abhigyan Algorithm to select adaptive history questions.
+- Detects red flags and assigns doctor review priority.
+- Generates a structured clinician-facing summary for review.
+
+## Security and Privacy
+
+- Do not commit API keys, credential files, patient identifiers, raw datasets, or trained checkpoints.
+- Keep local secrets in environment variables, Colab runtime-only files, or platform secret managers.
+- `.gitignore` excludes Python caches, raw data folders, output artifacts, checkpoints, metrics, and local credential files.
+- Screenshots committed here are for demo documentation and should not include real patient identities or visible secrets.
 
 ## Milestone 1
 
@@ -75,7 +111,7 @@ notebooks/train_effnet_b0_colab.ipynb
 
 Direct Colab link:
 
-- [Train EfficientNet-B0 on Colab](https://colab.research.google.com/drive/1XJ1IGi2Gwntkn50t2eL8IyaUbGvrMf28?authuser=2#scrollTo=yixEUF6O8qPt)
+- [Train EfficientNet-B0 on Colab](https://colab.research.google.com/drive/1XJ1IGi2Gwntkn50t2eL8IyaUbGvrMf28#scrollTo=yixEUF6O8qPt)
 
 Dataset source:
 

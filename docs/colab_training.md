@@ -44,10 +44,7 @@ The notebook clones this repo into the Colab runtime. If the repo is private, Co
 fatal: could not read Username for 'https://github.com': No such device or address
 ```
 
-Fix one of these ways:
-
-- Make `https://github.com/Abhigyan-Shekhar/skin-lesion-detect-model` public while training.
-- Or add a Colab Secret named `GITHUB_TOKEN` with read access to the repo, then rerun the clone cell.
+Make `https://github.com/Abhigyan-Shekhar/skin-lesion-detect-model` public while training or clone it manually from an authenticated Colab session. Do not paste credentials into notebook cells.
 
 The notebook creates `MyDrive/derm-opd-triage` automatically. Drive does not need to contain anything before the first run.
 

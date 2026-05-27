@@ -3,6 +3,12 @@ __pycache__/
 .DS_Store
 .venv/
 venv/
+.env
+.env.*
+*.pem
+*.key
+kaggle.json
+secrets/
 data/raw/
 data/ham10000/raw/
 outputs/checkpoints/
