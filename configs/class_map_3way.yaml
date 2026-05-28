@@ -1,0 +1,20 @@
+# Triage-urgency grouping: 8 Main_class labels -> 3 coarse training targets.
+main_class_to_coarse:
+  Infectious Disorders: infectious
+  Inflammatory Disorders: non_urgent_dermatologic
+  Pigmentary Disorders: non_urgent_dermatologic
+  Skin Appendages Disorders: non_urgent_dermatologic
+  Keratanisation Disorders: non_urgent_dermatologic
+  Other skin disorders: non_urgent_dermatologic
+  Neoplasms and tumors: referral_urgent
+  No Definite Diagnosis: referral_urgent
+
+coarse_class_names:
+  - infectious
+  - non_urgent_dermatologic
+  - referral_urgent
+
+class_loss_multipliers:
+  infectious: 1.2
+  non_urgent_dermatologic: 1.0
+  referral_urgent: 3.0

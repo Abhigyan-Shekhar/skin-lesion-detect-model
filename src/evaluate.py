@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from dataset import DermatologyDataset, build_transforms
 from metrics import build_classification_report, compute_epoch_metrics
+from thresholds import load_thresholds, predict_with_thresholds
 from models import build_model
 from utils import DISCLAMER_TEXT, ensure_dir, resolve_device, write_json
 
@@ -100,7 +101,11 @@ def main() -> None:
                 )
 
     probs_array = np.asarray(all_probs)
-    metrics = compute_epoch_metrics(all_targets, all_preds, probs_array)
+    thresholds_path = Path(args.output_dir) / "metrics" / "per_class_thresholds.json"
+    if thresholds_path.exists():
+        thresholds = load_thresholds(thresholds_path, class_names)
+        all_preds = predict_with_thresholds(probs_array, thresholds).tolist()
+    metrics = compute_epoch_metrics(all_targets, all_preds, probs_array, class_names=class_names)
     metrics["disclaimer"] = DISCLAMER_TEXT
 
     precision, recall, f1, support = precision_recall_fscore_support(

@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from fusion import build_combined_payload
+from coarse_fusion import predict_coarse_label
 from question_engine import run_engine
 from router import run_dual_model_inference
 from summary_generator import generate_summary, summary_to_text
@@ -364,6 +365,26 @@ def render_questions() -> None:
         st.metric("Urgency", scoring["urgency_level"])
         st.write(scoring["doctor_review_priority"])
         st.json(scoring)
+
+        payload = st.session_state.predictions_payload
+        top_preds = payload.get("top_predictions", payload) if isinstance(payload, dict) else payload
+        if isinstance(top_preds, list) and top_preds:
+            image_probs = {
+                str(row["label"]): float(row.get("probability", row.get("prob", 0.0)))
+                for row in top_preds
+            }
+            fused_label, fused_probs = predict_coarse_label(
+                image_probs, st.session_state.answers, alpha=0.6
+            )
+            st.subheader("3-class fusion (image + history)")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.caption("Image-only top label")
+                st.write(max(image_probs, key=image_probs.get))
+            with col_b:
+                st.caption("Fused triage label")
+                st.write(fused_label)
+            st.json({"fused_probs": fused_probs})
 
 
 def render_summary() -> None:

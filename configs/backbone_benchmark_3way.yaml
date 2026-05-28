@@ -1,0 +1,33 @@
+seed: 42
+task_name: main_class_3way
+image_size: 224
+batch_size: 32
+epochs_head: 15
+epochs_finetune: 20
+lr_head: 0.001
+lr_finetune: 0.00001
+weight_decay: 0.0001
+num_workers: 2
+use_class_weights: true
+label_smoothing: 0.1
+focal_gamma: 2.0
+use_focal_loss: false
+early_stopping_patience: 7
+checkpoint_metric: recall_first
+freeze_backbone: true
+amp: true
+device: auto
+
+models:
+  - convnext_tiny
+  - resnet50
+  - efficientnet_b0
+  - swin_tiny
+
+train_csv: data/splits/train.csv
+val_csv: data/splits/val.csv
+test_csv: data/splits/test.csv
+image_dir: data/raw/DATASET
+label_column: coarse_class
+class_map_path: configs/class_map_3way.yaml
+output_dir: outputs_v3

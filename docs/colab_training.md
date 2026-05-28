@@ -1,6 +1,32 @@
 # Colab Training Guide
 
-This is the current priority path for the project: train EfficientNet-B0 on Colab, evaluate it, and export artifacts.
+## V3 (recommended): recall-first 3-class pipeline
+
+Use [`notebooks/train_main_class_v3_colab.ipynb`](../notebooks/train_main_class_v3_colab.ipynb) for:
+
+- 3-way triage labels (`infectious`, `non_urgent_dermatologic`, `referral_urgent`)
+- Recall-first checkpoint selection and per-class thresholds
+- Backbone benchmark (ConvNeXt-Tiny, ResNet50, EffNet-B0, Swin-Tiny)
+- Image vs history fusion lift (`fusion_lift.json`)
+- Optional H2O AutoML (`RUN_H2O_BENCHMARK = True`)
+
+Outputs go to `outputs_v3/` on Drive.
+
+Prepare coarse splits locally or in Colab:
+
+```bash
+python src/prepare_splits.py \
+  --metadata data/raw/METADATA/Skin_Metadata.csv \
+  --output_dir data/splits \
+  --coarse-labels \
+  --class-map configs/class_map_3way.yaml
+```
+
+---
+
+## V1/V2: 8-class main-class training
+
+This path trains EfficientNet-B0 (V1) or the improved V2 notebook on 8 `Main_class` labels.
 
 ## Runtime
 

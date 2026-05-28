@@ -428,8 +428,26 @@ def profile_alias_map(profile_name: str) -> dict[str, str]:
     return alias_map
 
 
+# Map 3-way coarse / 8-way main-class model outputs to OPD question-bank candidates.
+COARSE_LABEL_TO_OPD_CANDIDATE: dict[str, str] = {
+    "infectious": "fungal_infection",
+    "non_urgent_dermatologic": "inflammatory_mimics",
+    "referral_urgent": "deep_bacterial_infection_urgent",
+    "infectious disorders": "fungal_infection",
+    "inflammatory disorders": "inflammatory_mimics",
+    "pigmentary disorders": "inflammatory_mimics",
+    "neoplasms and tumors": "deep_bacterial_infection_urgent",
+    "no definite diagnosis": "deep_bacterial_infection_urgent",
+}
+
+
 def candidate_for_label(label: str, profile_name: str) -> str | None:
-    return profile_alias_map(profile_name).get(normalize_label(label))
+    normalized = normalize_label(label)
+    if normalized in COARSE_LABEL_TO_OPD_CANDIDATE:
+        candidate = COARSE_LABEL_TO_OPD_CANDIDATE[normalized]
+        if candidate in profile_alias_map(profile_name).values():
+            return candidate
+    return profile_alias_map(profile_name).get(normalized)
 
 
 def parse_predictions(payload: dict[str, Any] | list[dict[str, Any]]) -> list[Prediction]:

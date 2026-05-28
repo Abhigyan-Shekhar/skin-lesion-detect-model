@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataset import DermatologyDataset, build_transforms
-from metrics import compute_epoch_metrics
+from metrics import compute_epoch_metrics, selection_score_from_metrics
 from models import build_model, unfreeze_last_blocks
 from utils import (
     choose_label_column,
@@ -208,7 +208,10 @@ def main() -> None:
             "Train/val split CSVs were not found. Run src/prepare_splits.py first."
         )
 
-    image_column, label_column, class_names = load_split_metadata(train_csv, val_csv, args.label_column)
+    image_column, label_column, class_names = load_split_metadata(
+        train_csv, val_csv, args.label_column or config.get("label_column")
+    )
+    checkpoint_metric = config.get("checkpoint_metric", "macro_f1")
     device = resolve_device(config.get("device", "auto"))
     amp_enabled = bool(config.get("amp", True)) and device.type == "cuda"
 
@@ -238,6 +241,7 @@ def main() -> None:
 
     history: list[dict] = []
     best_macro_f1 = -1.0
+    best_selection_score = -1.0
     patience = int(config.get("early_stopping_patience", 7))
     patience_counter = 0
     global_epoch = 0
@@ -289,6 +293,22 @@ def main() -> None:
                 scaler=None,
                 amp_enabled=amp_enabled,
             )
+            if checkpoint_metric == "recall_first":
+                model.eval()
+                val_targets: list[int] = []
+                val_preds: list[int] = []
+                val_probs: list[np.ndarray] = []
+                with torch.no_grad():
+                    for images, labels, _ in val_loader:
+                        images = images.to(device)
+                        logits = model(images)
+                        probs = torch.softmax(logits, dim=1).cpu().numpy()
+                        val_probs.extend(probs)
+                        val_preds.extend(probs.argmax(axis=1).tolist())
+                        val_targets.extend(labels.tolist())
+                val_metrics = compute_epoch_metrics(
+                    val_targets, val_preds, np.asarray(val_probs), class_names=class_names
+                )
 
             row = {
                 "global_epoch": global_epoch,
@@ -329,7 +349,9 @@ def main() -> None:
                 )
 
             current_macro_f1 = val_metrics["macro_f1"]
-            if current_macro_f1 > best_macro_f1:
+            current_selection = selection_score_from_metrics(val_metrics, checkpoint_metric)
+            if current_selection > best_selection_score:
+                best_selection_score = current_selection
                 best_macro_f1 = current_macro_f1
                 patience_counter = 0
                 save_checkpoint(
@@ -341,14 +363,15 @@ def main() -> None:
                     class_to_idx,
                     image_column,
                     label_column,
-                    best_macro_f1,
+                    best_selection_score,
                 )
             else:
                 patience_counter += 1
 
+            score_label = checkpoint_metric if checkpoint_metric == "recall_first" else "macro_f1"
             print(
                 f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
-                f"val_macro_f1={current_macro_f1:.4f} best_macro_f1={best_macro_f1:.4f}"
+                f"val_{score_label}={current_selection:.4f} best={best_selection_score:.4f}"
             )
 
             if patience_counter >= patience:
@@ -357,6 +380,8 @@ def main() -> None:
                     metrics_dir / "training_summary.json",
                     {
                         "best_macro_f1": best_macro_f1,
+                        "best_selection_score": best_selection_score,
+                        "checkpoint_metric": checkpoint_metric,
                         "stopped_early": True,
                         "completed_epochs": global_epoch,
                         "label_column": label_column,
@@ -370,6 +395,8 @@ def main() -> None:
         metrics_dir / "training_summary.json",
         {
             "best_macro_f1": best_macro_f1,
+            "best_selection_score": best_selection_score,
+            "checkpoint_metric": checkpoint_metric,
             "stopped_early": False,
             "completed_epochs": global_epoch,
             "label_column": label_column,

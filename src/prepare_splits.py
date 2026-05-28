@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
+from label_groups import apply_coarse_label, coarse_label_distribution, load_class_map
 from utils import choose_label_column, detect_columns, ensure_dir, read_table, set_seed, write_json
 
 
@@ -88,6 +89,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test_split", default=None, help="Optional official test split CSV")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--label_column", default=None, help="Optional explicit label column")
+    parser.add_argument(
+        "--coarse-labels",
+        action="store_true",
+        help="Map Main_class to 3-way coarse_class before splitting",
+    )
+    parser.add_argument(
+        "--class-map",
+        default="configs/class_map_3way.yaml",
+        help="YAML mapping for --coarse-labels",
+    )
+    parser.add_argument(
+        "--coarse-source-column",
+        default=None,
+        help="Source column for coarse mapping (default: detected main_class)",
+    )
     return parser.parse_args()
 
 
@@ -122,6 +138,20 @@ def main() -> None:
     label_column = choose_label_column(detected, args.label_column)
     if label_column is None:
         print("WARNING: No label column was detected automatically. Split will not be stratified.")
+
+    coarse_source_column = args.coarse_source_column or detected.get("main_class") or label_column
+    if args.coarse_labels:
+        if not coarse_source_column or coarse_source_column not in df.columns:
+            raise ValueError(
+                "Cannot build coarse_class: no Main_class column found. "
+                f"Columns: {df.columns.tolist()}"
+            )
+        mapping = load_class_map(args.class_map)
+        before_rows = len(df)
+        df = apply_coarse_label(df, source_col=coarse_source_column, target_col="coarse_class", mapping=mapping)
+        print(f"Coarse labels: {before_rows} -> {len(df)} rows after mapping")
+        print("Coarse distribution:", coarse_label_distribution(df))
+        label_column = "coarse_class"
 
     output_dir = ensure_dir(args.output_dir)
     train_split = Path(args.train_split) if args.train_split else discover_official_split(metadata_path, "train_split.csv")
@@ -184,6 +214,10 @@ def main() -> None:
         "label_column": label_column,
         "detected_columns": detected,
     }
+    if label_column:
+        summary["train_label_distribution"] = coarse_label_distribution(train_df, label_column)
+        summary["val_label_distribution"] = coarse_label_distribution(val_df, label_column)
+        summary["test_label_distribution"] = coarse_label_distribution(test_df, label_column)
     write_json(output_dir / "split_summary.json", summary)
 
     print("\n=== Split Summary ===")
