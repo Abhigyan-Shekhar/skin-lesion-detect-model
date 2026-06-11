@@ -264,6 +264,8 @@ def main() -> None:
     for phase in training_phases:
         if phase["before_phase"] is not None:
             phase["before_phase"]()
+            patience_counter = 0
+            print(f"Reset early-stopping patience for phase: {phase['name']}")
 
         optimizer = AdamW(
             filter(lambda parameter: parameter.requires_grad, model.parameters()),
