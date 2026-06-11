@@ -353,6 +353,8 @@ def train_v3(
     for phase in phases:
         if phase["unfreeze"]:
             unfreeze_last_blocks(config["model_name"], model)
+            patience_counter = 0
+            print(f"Reset early-stopping patience for phase: {phase['name']}")
         optimizer = AdamW(
             filter(lambda p: p.requires_grad, model.parameters()),
             lr=phase["lr"],
