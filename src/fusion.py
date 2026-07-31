@@ -24,12 +24,31 @@ def dominant_branch(branches: dict[str, dict[str, Any]]) -> str:
     return ranked[0][0] if ranked else "opd"
 
 
-def build_combined_payload(dual_model_result: dict[str, Any]) -> dict[str, Any]:
-    branches = dual_model_result.get("branches", {})
+def build_combined_payload(model_result: dict[str, Any]) -> dict[str, Any]:
+    branches = model_result.get("branches", {})
     dominant = dominant_branch(branches)
+    mode = model_result.get("mode", "combined")
+    if len(branches) == 1:
+        branch_name, payload = next(iter(branches.items()))
+        return {
+            "mode": "single_model",
+            "modality": model_result.get("modality"),
+            "selected_branch": branch_name,
+            "image_path": model_result.get("image_path"),
+            "top_predictions": payload.get("top_predictions", []),
+            "confidence_level": payload.get("confidence_level"),
+            "max_probability": payload.get("max_probability"),
+            "branches": branches,
+            "fusion": {
+                "dominant_branch": branch_name,
+                "reasoning_note": "Only the modality-appropriate model branch was run.",
+            },
+            "disclaimer": DISCLAIMER_TEXT,
+        }
     return {
-        "mode": "combined",
-        "image_path": dual_model_result.get("image_path"),
+        "mode": "combined" if mode == "dual_model" else mode,
+        "modality": model_result.get("modality"),
+        "image_path": model_result.get("image_path"),
         "branches": branches,
         "fusion": {
             "dominant_branch": dominant,
@@ -42,8 +61,8 @@ def build_combined_payload(dual_model_result: dict[str, Any]) -> dict[str, Any]:
                 for branch_name, payload in branches.items()
             },
             "reasoning_note": (
-                "Both models were run on the same image. Broad OPD context and lesion-specific "
-                "signals should be interpreted together rather than averaging probabilities."
+                "Both model branches were run only because valid clinical and dermoscopic "
+                "images were provided. Probability spaces are kept separate and are not averaged."
             ),
         },
         "disclaimer": DISCLAIMER_TEXT,

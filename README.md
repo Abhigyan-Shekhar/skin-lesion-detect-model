@@ -255,29 +255,29 @@ python src/evaluate.py \
   --output_dir outputs_ham10000
 ```
 
-## Combined Dual-Model Reasoning
+## Modality-Gated Model Reasoning
 
-To run both the DermaCon-IN OPD model and the HAM10000 lesion model on the same uploaded image, use:
+Do not run both models on the same ordinary uploaded image. Select the branch from the image modality:
+
+- Clinical photograph: DermaCon-IN OPD branch
+- Dermoscopic image: HAM10000 lesion branch
+- Both images: run both branches only when both valid image types are supplied
+- Unknown modality: abstain and request the correct image type
+
+The Streamlit app follows this gate and also performs basic image-quality checks for blur, lighting, framing, and low color information before inference.
+
+The older dual-model helper is kept for compatibility, but new triage flows should use modality-gated inference:
 
 ```bash
-python src/unified_inference.py \
-  --image path/to/lesion.jpg \
-  --opd_checkpoint outputs/checkpoints/best.pt \
-  --lesion_checkpoint outputs_ham10000/checkpoints/best.pt
+streamlit run app/streamlit_app.py
 ```
 
-This keeps both branches separate:
+The resulting payload keeps probability spaces separate:
 
 - DermaCon-IN: broad OPD / clinical context
 - HAM10000: lesion-specific differential
 
-The resulting JSON includes:
-
-- `dual_model_result`
-- `combined_payload`
-- `engine_output`
-
-Use `engine_output` to drive adaptive questions and the doctor-facing summary. Do not average the two model probability spaces.
+Use the adaptive question tab to ask one question at a time. After each answer, the app updates a belief state containing image predictions, patient context, previous answers, positive/negative findings, red flags, current differential, uncertainty, and questions already asked. Questioning stops on urgent red flags, stable differential, low uncertainty, low expected utility, maximum question budget, no remaining questions, or abstention.
 
 ## Expected data layout
 

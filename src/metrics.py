@@ -9,6 +9,7 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     classification_report,
     f1_score,
+    roc_auc_score,
     precision_recall_fscore_support,
     recall_score,
 )
@@ -92,7 +93,38 @@ def compute_epoch_metrics(
         logits = torch.tensor(probs)
         metrics["top3_accuracy"] = topk_accuracy(logits, targets, 3)
         metrics["top5_accuracy"] = topk_accuracy(logits, targets, 5)
+        try:
+            labels = list(range(n_classes))
+            if n_classes == 2:
+                metrics["roc_auc"] = float(roc_auc_score(y_true, probs[:, 1]))
+            else:
+                metrics["roc_auc_ovr_macro"] = float(
+                    roc_auc_score(y_true, probs, labels=labels, multi_class="ovr", average="macro")
+                )
+        except ValueError:
+            metrics["roc_auc_available"] = 0.0
+        metrics["expected_calibration_error"] = expected_calibration_error(y_true, probs)
     return metrics
+
+
+def expected_calibration_error(
+    y_true: Sequence[int],
+    probs: np.ndarray,
+    n_bins: int = 15,
+) -> float:
+    confidences = probs.max(axis=1)
+    predictions = probs.argmax(axis=1)
+    correct = predictions == np.asarray(y_true)
+    ece = 0.0
+    for lower in np.linspace(0.0, 1.0, n_bins, endpoint=False):
+        upper = lower + 1.0 / n_bins
+        in_bin = (confidences > lower) & (confidences <= upper)
+        if not np.any(in_bin):
+            continue
+        accuracy = float(np.mean(correct[in_bin]))
+        confidence = float(np.mean(confidences[in_bin]))
+        ece += float(np.mean(in_bin)) * abs(accuracy - confidence)
+    return float(ece)
 
 
 def build_classification_report(
