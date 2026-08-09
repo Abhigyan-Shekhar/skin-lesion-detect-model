@@ -9,7 +9,7 @@ lr_finetune: 0.00001
 weight_decay: 0.0001
 num_workers: 2
 use_class_weights: true
-label_smoothing: 0.1
+label_smoothing: 0.0
 focal_gamma: 2.0
 use_focal_loss: false
 early_stopping_patience: 7

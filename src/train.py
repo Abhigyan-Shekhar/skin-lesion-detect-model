@@ -102,6 +102,16 @@ def make_loss(
     device: torch.device,
     label_smoothing: float = 0.0,
 ) -> nn.Module:
+    if label_smoothing <= 0.0:
+        if not use_class_weights:
+            return nn.CrossEntropyLoss()
+
+        labels = train_dataset.df[train_dataset.label_column].astype(str).tolist()
+        classes = np.array(sorted(train_dataset.class_to_idx.keys()))
+        weights = compute_class_weight(class_weight="balanced", classes=classes, y=labels)
+        tensor_weights = torch.tensor(weights, dtype=torch.float32, device=device)
+        return nn.CrossEntropyLoss(weight=tensor_weights)
+
     if not use_class_weights:
         return nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
