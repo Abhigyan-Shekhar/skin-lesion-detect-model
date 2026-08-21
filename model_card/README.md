@@ -25,6 +25,10 @@ This model is for non-commercial research use only. It is not a medical device. 
 - Intended milestone: broad dermatology main-class prediction for research triage support
 - Interface: optional Streamlit research demo with adaptive question engine and doctor-facing summary
 
+## V3 recall-first 3-class variant
+
+A separate training path (`notebooks/train_main_class_v3_colab.ipynb`) consolidates 8 main classes into 3 triage buckets and optimizes for **sensitivity**, especially `referral_urgent` (neoplasm / undiagnosed). Expect lower precision and macro F1 in exchange for fewer false negatives on urgent cases. Image predictions can be fused with adaptive history (`src/coarse_fusion.py`); see `fusion_lift.json` for measured lift vs image-only.
+
 ## Intended Use
 
 - Research on image-guided adaptive dermatology OPD intake

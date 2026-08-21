@@ -359,12 +359,22 @@ DIAGNOSIS_GUIDED_SPECIFIC_QUESTIONS: list[dict[str, Any]] = [
 
 RED_FLAG_ANSWER_IDS: dict[str, str] = {
     "lesion_progression": "Rapidly spreading lesion",
+    "rapid_change_size_shape_color": "Recent size/shape/color change",
     "pain": "Severe pain",
+    "severe_pain_out_of_proportion": "Severe pain out of proportion",
     "fever": "Fever associated with lesion",
+    "fever_or_chills": "Fever or chills with suspected infection",
     "pus_or_discharge": "Pus or discharge with swelling",
     "bleeding_or_ulceration": "Bleeding or ulceration",
+    "bleeding_or_crusting_without_injury": "Bleeding or crusting without injury",
+    "bleeds_with_minor_trauma": "Bleeding with minor trauma",
+    "bleeds_easily": "Bleeds easily",
+    "non_healing_sore": "Non-healing sore",
+    "non_healing_or_growing_patch": "Non-healing or enlarging patch",
     "loss_of_sensation": "Loss of sensation over patch",
     "immune_suppression": "Immunocompromised patient",
+    "immunosuppression_note": "Immunosuppression history",
+    "diabetes": "Diabetes with possible infection risk",
 }
 
 
@@ -428,8 +438,26 @@ def profile_alias_map(profile_name: str) -> dict[str, str]:
     return alias_map
 
 
+# Map 3-way coarse / 8-way main-class model outputs to OPD question-bank candidates.
+COARSE_LABEL_TO_OPD_CANDIDATE: dict[str, str] = {
+    "infectious": "fungal_infection",
+    "non_urgent_dermatologic": "inflammatory_mimics",
+    "referral_urgent": "deep_bacterial_infection_urgent",
+    "infectious disorders": "fungal_infection",
+    "inflammatory disorders": "inflammatory_mimics",
+    "pigmentary disorders": "inflammatory_mimics",
+    "neoplasms and tumors": "deep_bacterial_infection_urgent",
+    "no definite diagnosis": "deep_bacterial_infection_urgent",
+}
+
+
 def candidate_for_label(label: str, profile_name: str) -> str | None:
-    return profile_alias_map(profile_name).get(normalize_label(label))
+    normalized = normalize_label(label)
+    if normalized in COARSE_LABEL_TO_OPD_CANDIDATE:
+        candidate = COARSE_LABEL_TO_OPD_CANDIDATE[normalized]
+        if candidate in profile_alias_map(profile_name).values():
+            return candidate
+    return profile_alias_map(profile_name).get(normalized)
 
 
 def parse_predictions(payload: dict[str, Any] | list[dict[str, Any]]) -> list[Prediction]:
@@ -689,7 +717,17 @@ def diagnosis_guided_red_flags(answers: dict[str, Any]) -> list[dict[str, Any]]:
     for answer_id, flag_text in RED_FLAG_ANSWER_IDS.items():
         positive = answer_is_positive(answers.get(answer_id))
         if positive is True and answer_id not in seen:
-            weight = 2 if answer_id in {"fever", "bleeding_or_ulceration", "loss_of_sensation", "immune_suppression"} else 1
+            weight = 2 if answer_id in {
+                "fever",
+                "fever_or_chills",
+                "rapid_change_size_shape_color",
+                "bleeding_or_ulceration",
+                "bleeding_or_crusting_without_injury",
+                "non_healing_or_growing_patch",
+                "loss_of_sensation",
+                "immune_suppression",
+                "immunosuppression_note",
+            } else 1
             red_flags.append({"id": answer_id, "text": flag_text, "weight": weight})
             seen.add(answer_id)
     if answer_is_positive(answers.get("diabetes")) is True and (
@@ -1093,21 +1131,21 @@ def run_engine(
 
     if is_combined_payload(predictions_payload):
         branches = predictions_payload["branches"]
-        opd_questions = get_adaptive_questions(
-            parse_predictions(branches["opd"]),
-            profile_name="opd",
-            max_category_questions=max(4, max_category_questions // 2),
-        )
-        lesion_questions = get_adaptive_questions(
-            parse_predictions(branches["ham10000"]),
-            profile_name="ham10000",
-            max_category_questions=max(4, max_category_questions // 2),
-        )
+        branch_question_lists: list[list[dict[str, Any]]] = []
+        for branch_name, branch_payload in branches.items():
+            branch_profile = "ham10000" if branch_name == "ham10000" else "opd"
+            branch_question_lists.append(
+                get_adaptive_questions(
+                    parse_predictions(branch_payload),
+                    profile_name=branch_profile,
+                    max_category_questions=max(4, max_category_questions // max(len(branches), 1)),
+                )
+            )
         scoring = score_combined_answers(predictions_payload, answers or {})
         return {
             "profile": "combined",
             "profile_display_name": "Combined clinical + lesion reasoning",
-            "questions": merge_questions(opd_questions, lesion_questions),
+            "questions": merge_questions(*branch_question_lists),
             "branch_questions": scoring.get("branch_questions", {}),
             "scoring": scoring,
             "disclaimer": DISCLAIMER_TEXT,

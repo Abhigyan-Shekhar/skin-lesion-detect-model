@@ -22,21 +22,33 @@ Image-guided adaptive questioning can improve triage workflow by focusing histor
 
 ## Evaluation
 
-### Image model
+### Image model (V3 — 3-class recall-first)
 
-- accuracy
-- top-3 accuracy
-- top-5 accuracy
-- macro F1
-- balanced accuracy
-- per-class F1
+Primary metrics (see `notebooks/train_main_class_v3_colab.ipynb`):
+
+- **macro recall** and **referral_urgent recall** (checkpoint selection)
+- recall-first score: `0.5 * macro_recall + 0.5 * referral_urgent_recall`
+- per-class precision/recall/F1 on `infectious`, `non_urgent_dermatologic`, `referral_urgent`
+- balanced accuracy, macro F1 (reported; expected precision/F1 trade-off)
+- per-class probability thresholds tuned on validation for sensitivity
+
+### History fusion (V3)
+
+Experiments A/B/C in `src/evaluate_fusion.py`:
+
+- **A** — image-only 3-class prediction
+- **B** — image + oracle simulated history from metadata
+- **C** — image + partial simulated history
+
+Report `fusion_lift.json`: delta macro recall and delta urgent recall vs image-only.
 
 ### Question engine
 
-- simulate cases from metadata where possible
+- simulate cases from metadata where possible (`src/history_simulator.py`)
 - expert dermatologist review if available
 - measure whether questions cover relevant HPI and red flags
 - compare static questionnaire vs adaptive questionnaire
+- coarse-class fusion via `src/coarse_fusion.py`
 
 ## Safety
 

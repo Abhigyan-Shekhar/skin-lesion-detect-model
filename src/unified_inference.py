@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from coarse_fusion import predict_coarse_label
 from fusion import build_combined_payload
 from question_engine import run_engine
 from router import run_dual_model_inference
@@ -19,6 +20,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top_k_lesion", type=int, default=5)
     parser.add_argument("--answers", default=None, help="Optional JSON string/file of adaptive answers")
     parser.add_argument("--output", default=None, help="Optional path to save the fused JSON output")
+    parser.add_argument(
+        "--coarse_fusion",
+        action="store_true",
+        help="Fuse 3-class image probs with history answers (requires coarse-class checkpoint)",
+    )
+    parser.add_argument("--fusion_alpha", type=float, default=0.6, help="Image weight for coarse fusion")
     return parser.parse_args()
 
 
@@ -51,6 +58,18 @@ def main() -> None:
         "combined_payload": combined_payload,
         "engine_output": engine_output,
     }
+
+    if args.coarse_fusion:
+        opd_branch = dual_model_result.get("branches", {}).get("opd", {})
+        top_preds = opd_branch.get("top_predictions", [])
+        image_probs = {row["label"]: float(row["probability"]) for row in top_preds}
+        fused_label, fused_probs = predict_coarse_label(image_probs, answers, alpha=args.fusion_alpha)
+        result["coarse_fusion"] = {
+            "image_only_probs": image_probs,
+            "fused_label": fused_label,
+            "fused_probs": fused_probs,
+            "alpha": args.fusion_alpha,
+        }
 
     if args.output:
         from utils import write_json

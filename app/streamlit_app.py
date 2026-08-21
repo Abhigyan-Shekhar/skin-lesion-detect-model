@@ -16,9 +16,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from fusion import build_combined_payload
-from question_engine import run_engine
-from router import run_dual_model_inference
+from coarse_fusion import predict_coarse_label
+from image_quality import assess_image_quality, image_quality_warning_text
+from router import run_modality_gated_inference
 from summary_generator import generate_summary, summary_to_text
+from triage_state import build_belief_state
 from utils import DISCLAIMER_TEXT
 
 
@@ -60,6 +62,9 @@ def init_state() -> None:
         "predictions_payload": None,
         "answers": {},
         "engine_output": None,
+        "belief_state": None,
+        "image_quality": None,
+        "modality": "clinical",
         "summary": None,
         "summary_text": "",
     }
@@ -94,18 +99,23 @@ def normalize_manual_predictions(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def normalize_manual_combined_predictions(
-    opd_rows: list[dict[str, Any]],
-    lesion_rows: list[dict[str, Any]],
-) -> dict[str, Any]:
-    combined_input = {
-        "image_path": "manual-demo",
-        "branches": {
-            "opd": normalize_manual_predictions(opd_rows),
-            "ham10000": normalize_manual_predictions(lesion_rows),
-        },
-    }
-    return build_combined_payload(combined_input)
+def normalize_manual_branch_predictions(rows: list[dict[str, Any]], branch_name: str, modality: str) -> dict[str, Any]:
+    return build_combined_payload(
+        {
+            "mode": "single_model",
+            "modality": modality,
+            "image_path": "manual-demo",
+            "branches": {branch_name: normalize_manual_predictions(rows)},
+        }
+    )
+
+
+def reset_reasoning_state() -> None:
+    st.session_state.answers = {}
+    st.session_state.engine_output = None
+    st.session_state.belief_state = None
+    st.session_state.summary = None
+    st.session_state.summary_text = ""
 
 
 def render_disclaimer() -> None:
@@ -206,10 +216,31 @@ def render_patient_intake() -> None:
 
 def render_prediction_panel() -> None:
     st.subheader("Image And Model Prediction")
-    uploaded = st.file_uploader("Upload lesion image", type=["jpg", "jpeg", "png"])
-    if uploaded:
-        image = Image.open(uploaded).convert("RGB")
-        st.image(image, caption="Uploaded image", use_container_width=True)
+    modality = st.radio(
+        "Image modality",
+        ["Clinical photograph", "Dermoscopic image", "Both images", "Unknown modality"],
+        horizontal=True,
+    )
+    modality_key = {
+        "Clinical photograph": "clinical",
+        "Dermoscopic image": "dermoscopic",
+        "Both images": "both",
+        "Unknown modality": "unknown",
+    }[modality]
+    st.session_state.modality = modality_key
+
+    clinical_upload = None
+    dermoscopic_upload = None
+    if modality_key in {"clinical", "both", "unknown"}:
+        clinical_upload = st.file_uploader("Upload clinical photograph", type=["jpg", "jpeg", "png"], key="clinical_upload")
+        if clinical_upload:
+            image = Image.open(clinical_upload).convert("RGB")
+            st.image(image, caption="Clinical photograph", use_container_width=True)
+    if modality_key in {"dermoscopic", "both"}:
+        dermoscopic_upload = st.file_uploader("Upload dermoscopic image", type=["jpg", "jpeg", "png"], key="dermoscopic_upload")
+        if dermoscopic_upload:
+            image = Image.open(dermoscopic_upload).convert("RGB")
+            st.image(image, caption="Dermoscopic image", use_container_width=True)
 
     col_a, col_b, col_c = st.columns([2, 2, 1])
     with col_a:
@@ -225,86 +256,119 @@ def render_prediction_panel() -> None:
     with col_c:
         top_k = st.number_input("Top-k", min_value=1, max_value=10, value=5)
 
-    if st.button("Run Dual-Model Inference", disabled=uploaded is None):
+    upload_ready = (
+        (modality_key == "clinical" and clinical_upload is not None)
+        or (modality_key == "dermoscopic" and dermoscopic_upload is not None)
+        or (modality_key == "both" and clinical_upload is not None and dermoscopic_upload is not None)
+        or modality_key == "unknown"
+    )
+    if st.button("Run Modality-Gated Inference", disabled=not upload_ready):
         opd_checkpoint = Path(opd_checkpoint_text)
         lesion_checkpoint = Path(lesion_checkpoint_text)
-        if not opd_checkpoint.exists() or not lesion_checkpoint.exists():
-            st.warning("One or both checkpoints were not found. Use the manual combined prediction demo below until both models are trained.")
+        needs_opd = modality_key in {"clinical", "both"}
+        needs_lesion = modality_key in {"dermoscopic", "both"}
+        if (needs_opd and not opd_checkpoint.exists()) or (needs_lesion and not lesion_checkpoint.exists()):
+            st.warning("The modality-selected checkpoint was not found. Use the manual prediction demo below until the model is trained.")
+        elif modality_key == "unknown":
+            reset_reasoning_state()
+            st.session_state.predictions_payload = None
+            st.session_state.image_quality = {"accepted": False, "warnings": ["Unsupported or unknown image modality."], "measurements": {}}
+            st.warning("Unknown modality: request the correct image type before model inference.")
         else:
-            suffix = Path(uploaded.name).suffix or ".jpg"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
-                handle.write(uploaded.getbuffer())
-                temp_path = Path(handle.name)
+            temp_paths: dict[str, Path] = {}
             try:
-                dual_result = run_dual_model_inference(
-                    image_path=temp_path,
+                if clinical_upload is not None:
+                    suffix = Path(clinical_upload.name).suffix or ".jpg"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+                        handle.write(clinical_upload.getbuffer())
+                        temp_paths["clinical"] = Path(handle.name)
+                if dermoscopic_upload is not None:
+                    suffix = Path(dermoscopic_upload.name).suffix or ".jpg"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+                        handle.write(dermoscopic_upload.getbuffer())
+                        temp_paths["dermoscopic"] = Path(handle.name)
+
+                quality_results = {
+                    branch: assess_image_quality(path)
+                    for branch, path in temp_paths.items()
+                }
+                st.session_state.image_quality = {
+                    "accepted": all(item["accepted"] for item in quality_results.values()),
+                    "warnings": [
+                        f"{branch}: {warning}"
+                        for branch, result in quality_results.items()
+                        for warning in result.get("warnings", [])
+                    ],
+                    "measurements": {
+                        branch: result.get("measurements", {})
+                        for branch, result in quality_results.items()
+                    },
+                } if quality_results else None
+                if st.session_state.image_quality and not st.session_state.image_quality["accepted"]:
+                    reset_reasoning_state()
+                    st.warning(image_quality_warning_text(st.session_state.image_quality))
+                    return
+
+                model_result = run_modality_gated_inference(
+                    modality=modality_key,
+                    clinical_image_path=temp_paths.get("clinical"),
+                    dermoscopic_image_path=temp_paths.get("dermoscopic"),
                     opd_checkpoint=opd_checkpoint,
                     lesion_checkpoint=lesion_checkpoint,
-                    top_k_opd=int(top_k),
-                    top_k_lesion=int(top_k),
+                    top_k=int(top_k),
                 )
-                st.session_state.predictions_payload = build_combined_payload(dual_result)
-                st.session_state.answers = {}
-                st.session_state.engine_output = None
-                st.session_state.summary = None
-                st.session_state.summary_text = ""
-                st.success("Dual-model prediction generated.")
+                if model_result.get("mode") == "abstain":
+                    reset_reasoning_state()
+                    st.session_state.predictions_payload = None
+                    st.warning(model_result["reason"])
+                else:
+                    st.session_state.predictions_payload = build_combined_payload(model_result)
+                    reset_reasoning_state()
+                    st.success("Modality-appropriate prediction generated.")
             except RuntimeError as exc:
                 st.error(str(exc))
             finally:
-                temp_path.unlink(missing_ok=True)
+                for temp_path in temp_paths.values():
+                    temp_path.unlink(missing_ok=True)
 
     st.divider()
-    st.caption("Manual combined entry is available for demo flow testing before both checkpoints exist.")
-    st.markdown("**Manual DermaCon-IN branch**")
-    opd_rows = []
+    st.caption("Manual entry is available for demo flow testing before checkpoints exist.")
+    manual_branch = st.radio(
+        "Manual prediction branch",
+        ["Clinical OPD branch", "Dermoscopy lesion branch"],
+        horizontal=True,
+    )
+    branch_name = "opd" if manual_branch == "Clinical OPD branch" else "ham10000"
+    manual_modality = "clinical" if branch_name == "opd" else "dermoscopic"
+    label_options = DEFAULT_OPD_LABELS if branch_name == "opd" else DEFAULT_LESION_LABELS
+    default_probs = [0.62, 0.20, 0.12] if branch_name == "opd" else [0.41, 0.24, 0.19]
+    st.markdown(f"**Manual {manual_branch}**")
+    manual_rows = []
     for index in range(3):
         col_label, col_prob = st.columns([3, 1])
         with col_label:
             label = st.text_input(
-                f"OPD prediction {index + 1}",
-                value=DEFAULT_OPD_LABELS[min(index, len(DEFAULT_OPD_LABELS) - 1)],
-                key=f"manual_opd_label_{index}",
+                f"Prediction {index + 1}",
+                value=label_options[min(index, len(label_options) - 1)],
+                key=f"manual_{branch_name}_label_{index}",
             )
         with col_prob:
             probability = st.number_input(
-                f"OPD probability {index + 1}",
+                f"Probability {index + 1}",
                 min_value=0.0,
                 max_value=1.0,
-                value=[0.62, 0.20, 0.12][index],
+                value=default_probs[index],
                 step=0.01,
-                key=f"manual_opd_prob_{index}",
+                key=f"manual_{branch_name}_prob_{index}",
             )
-        opd_rows.append({"label": label, "probability": probability})
+        manual_rows.append({"label": label, "probability": probability})
 
-    st.markdown("**Manual HAM10000 branch**")
-    lesion_rows = []
-    for index in range(3):
-        col_label, col_prob = st.columns([3, 1])
-        with col_label:
-            label = st.text_input(
-                f"Lesion prediction {index + 1}",
-                value=DEFAULT_LESION_LABELS[min(index, len(DEFAULT_LESION_LABELS) - 1)],
-                key=f"manual_lesion_label_{index}",
-            )
-        with col_prob:
-            probability = st.number_input(
-                f"Lesion probability {index + 1}",
-                min_value=0.0,
-                max_value=1.0,
-                value=[0.41, 0.24, 0.19][index],
-                step=0.01,
-                key=f"manual_lesion_prob_{index}",
-            )
-        lesion_rows.append({"label": label, "probability": probability})
-
-    if st.button("Use Manual Combined Predictions"):
-        st.session_state.predictions_payload = normalize_manual_combined_predictions(opd_rows, lesion_rows)
-        st.session_state.answers = {}
-        st.session_state.engine_output = None
-        st.session_state.summary = None
-        st.session_state.summary_text = ""
-        st.success("Manual combined predictions saved.")
+    if st.button("Use Manual Predictions"):
+        st.session_state.predictions_payload = normalize_manual_branch_predictions(manual_rows, branch_name, manual_modality)
+        st.session_state.modality = manual_modality
+        st.session_state.image_quality = {"accepted": True, "warnings": [], "measurements": {}}
+        reset_reasoning_state()
+        st.success("Manual predictions saved.")
 
     if st.session_state.predictions_payload:
         st.json(st.session_state.predictions_payload)
@@ -317,53 +381,88 @@ def render_questions() -> None:
         st.info("Add model or manual predictions first.")
         return
 
-    preview_engine = run_engine(
+    belief_state = build_belief_state(
         predictions_payload,
         answers=st.session_state.answers,
         patient_context=st.session_state.patient_intake,
+        image_quality=st.session_state.image_quality,
+        modality=st.session_state.modality,
     )
-    questions = preview_engine["questions"]
-    answers: dict[str, Any] = {}
-    with st.form("adaptive_questions_form"):
-        for question in questions:
-            question_id = question["id"]
-            default = st.session_state.answers.get(question_id)
-            if question.get("type") == "adaptive":
-                selected = st.radio(
-                    question["text"],
-                    ["Not answered", "Yes", "No"],
-                    horizontal=True,
-                    key=f"answer_{question_id}",
-                    index={"Not answered": 0, True: 1, False: 2}.get(default, 0),
-                )
-                if selected == "Yes":
-                    answers[question_id] = True
-                elif selected == "No":
-                    answers[question_id] = False
-            else:
-                value = st.text_input(
-                    question["text"],
-                    value="" if default in [None, True, False] else str(default),
-                    key=f"answer_{question_id}",
-                )
-                if value.strip():
-                    answers[question_id] = value.strip()
-        submitted = st.form_submit_button("Score Answers")
+    st.session_state.belief_state = belief_state
+    st.session_state.engine_output = belief_state["engine_output"]
 
-    if submitted:
-        st.session_state.answers = answers
-        st.session_state.engine_output = run_engine(
-            predictions_payload,
-            answers=answers,
-            patient_context=st.session_state.patient_intake,
+    scoring = belief_state["engine_output"]["scoring"]
+    metric_a, metric_b, metric_c = st.columns(3)
+    with metric_a:
+        st.metric("Questions asked", len(belief_state["questions_already_asked"]))
+    with metric_b:
+        st.metric("Uncertainty", belief_state["uncertainty"])
+    with metric_c:
+        st.metric("Urgency", scoring["urgency_level"])
+    st.write(scoring["doctor_review_priority"])
+
+    next_question = belief_state.get("next_question")
+    if next_question:
+        st.markdown("**Next question**")
+        st.caption(f"Utility: {next_question['utility']} | Section: {next_question.get('section', 'history')}")
+        with st.form(f"single_question_{next_question['id']}"):
+            if next_question.get("type") == "general" and next_question["id"] not in {
+                "hypertension",
+                "previous_hospital_admission",
+            }:
+                value = st.text_input(next_question["text"])
+                submitted = st.form_submit_button("Save Answer")
+                if submitted and value.strip():
+                    st.session_state.answers[next_question["id"]] = value.strip()
+                    st.rerun()
+            else:
+                selected = st.radio(next_question["text"], ["Yes", "No"], horizontal=True)
+                submitted = st.form_submit_button("Save Answer")
+                if submitted:
+                    st.session_state.answers[next_question["id"]] = selected == "Yes"
+                    st.rerun()
+    else:
+        st.info(f"Questioning stopped: {', '.join(belief_state['stop_reasons']) or 'complete'}.")
+
+    if st.button("Reset Adaptive Answers"):
+        reset_reasoning_state()
+        st.rerun()
+
+    with st.expander("Belief state", expanded=False):
+        st.json(
+            {
+                "positive_findings": belief_state["positive_findings"],
+                "negative_findings": belief_state["negative_findings"],
+                "red_flags": belief_state["red_flags"],
+                "current_differential": belief_state["current_differential"][:5],
+                "candidate_questions": belief_state["candidate_questions"],
+                "stop_reasons": belief_state["stop_reasons"],
+            }
         )
-        st.success("Adaptive scoring complete.")
 
     if st.session_state.engine_output:
-        scoring = st.session_state.engine_output["scoring"]
-        st.metric("Urgency", scoring["urgency_level"])
-        st.write(scoring["doctor_review_priority"])
-        st.json(scoring)
+        with st.expander("Scoring payload", expanded=False):
+            st.json(scoring)
+
+        payload = st.session_state.predictions_payload
+        top_preds = payload.get("top_predictions", payload) if isinstance(payload, dict) else payload
+        if isinstance(top_preds, list) and top_preds:
+            image_probs = {
+                str(row["label"]): float(row.get("probability", row.get("prob", 0.0)))
+                for row in top_preds
+            }
+            fused_label, fused_probs = predict_coarse_label(
+                image_probs, st.session_state.answers, alpha=0.6
+            )
+            st.subheader("3-class fusion (image + history)")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.caption("Image-only top label")
+                st.write(max(image_probs, key=image_probs.get))
+            with col_b:
+                st.caption("Fused triage label")
+                st.write(fused_label)
+            st.json({"fused_probs": fused_probs})
 
 
 def render_summary() -> None:
@@ -384,7 +483,7 @@ def render_summary() -> None:
             predictions_payload=st.session_state.predictions_payload,
             engine_output=st.session_state.engine_output,
             answers=st.session_state.answers,
-            image_quality_warning="Not automatically assessed in demo app.",
+            image_quality_warning=image_quality_warning_text(st.session_state.image_quality),
         )
         st.session_state.summary_text = summary_to_text(st.session_state.summary)
 

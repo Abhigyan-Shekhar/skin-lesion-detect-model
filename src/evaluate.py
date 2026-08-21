@@ -14,8 +14,9 @@ from tqdm import tqdm
 
 from dataset import DermatologyDataset, build_transforms
 from metrics import build_classification_report, compute_epoch_metrics
+from thresholds import load_thresholds, predict_with_thresholds
 from models import build_model
-from utils import DISCLAMER_TEXT, ensure_dir, resolve_device, write_json
+from utils import DISCLAIMER_TEXT, ensure_dir, resolve_device, write_json
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,14 +95,20 @@ def main() -> None:
                         "image_id": image_id,
                         "true_label": idx_to_class[int(labels[index].item())],
                         "predicted_label": idx_to_class[int(preds[index])],
+                        "top3_labels": "|".join(idx_to_class[int(i)] for i in top_indices[:3]),
+                        "top3_probs": "|".join(f"{float(probs[index][i]):.6f}" for i in top_indices[:3]),
                         "top5_labels": "|".join(idx_to_class[int(i)] for i in top_indices),
                         "top5_probs": "|".join(f"{float(probs[index][i]):.6f}" for i in top_indices),
                     }
                 )
 
     probs_array = np.asarray(all_probs)
-    metrics = compute_epoch_metrics(all_targets, all_preds, probs_array)
-    metrics["disclaimer"] = DISCLAMER_TEXT
+    thresholds_path = Path(args.output_dir) / "metrics" / "per_class_thresholds.json"
+    if thresholds_path.exists():
+        thresholds = load_thresholds(thresholds_path, class_names)
+        all_preds = predict_with_thresholds(probs_array, thresholds).tolist()
+    metrics = compute_epoch_metrics(all_targets, all_preds, probs_array, class_names=class_names)
+    metrics["disclaimer"] = DISCLAIMER_TEXT
 
     precision, recall, f1, support = precision_recall_fscore_support(
         all_targets, all_preds, labels=list(range(len(class_names))), zero_division=0
@@ -126,7 +133,7 @@ def main() -> None:
 
     with open(metrics_dir / "classification_report.txt", "w", encoding="utf-8") as handle:
         handle.write(report)
-        handle.write(f"\n\n{DISCLAMER_TEXT}\n")
+        handle.write(f"\n\n{DISCLAIMER_TEXT}\n")
     with open(metrics_dir / "metrics.json", "w", encoding="utf-8") as handle:
         json.dump(metrics, handle, indent=2)
     per_class_df.to_csv(metrics_dir / "per_class_metrics.csv", index=False)
